@@ -88,23 +88,31 @@ class Settings(BaseSettings):
         # The SPA's own origin is the only browser origin by default, so a deployment sets one URL.
         if "cors_origins" not in self.model_fields_set:
             self.cors_origins = [self.public_app_url.rstrip("/")]
-        if self.env == "prod" and self.jwt_secret == _DEV_JWT_SECRET:
-            raise ValueError("PROCURAX_JWT_SECRET must be set in production")
         if len(self.jwt_secret) < 32:
             raise ValueError("PROCURAX_JWT_SECRET must be at least 32 characters")
-        if self.env == "prod":
-            if self.demo_mode and not self.public_demo:
-                raise ValueError(
-                    "PROCURAX_DEMO_MODE must be false in production unless PROCURAX_PUBLIC_DEMO=true"
-                )
-            if self.db_echo:
-                raise ValueError("PROCURAX_DB_ECHO must be false in production")
-            if not self.public_app_url.startswith("https://"):
-                raise ValueError("PROCURAX_PUBLIC_APP_URL must use HTTPS in production")
-            if not self.cors_origins or any(
-                origin == "*" or not origin.startswith("https://") for origin in self.cors_origins
-            ):
-                raise ValueError("Production CORS origins must be explicit HTTPS origins")
+        if self.env != "prod":
+            return self
+        # Report every missing or unsafe production setting at once, so a deployment is fixed in
+        # one pass instead of one crash per variable.
+        problems = []
+        if self.jwt_secret == _DEV_JWT_SECRET:
+            problems.append("PROCURAX_JWT_SECRET must be set in production (32+ random characters)")
+        if "database_url" not in self.model_fields_set:
+            problems.append(
+                "PROCURAX_DATABASE_URL must be set in production (runtime role connection string)"
+            )
+        if self.demo_mode and not self.public_demo:
+            problems.append("PROCURAX_DEMO_MODE must be false in production unless PROCURAX_PUBLIC_DEMO=true")
+        if self.db_echo:
+            problems.append("PROCURAX_DB_ECHO must be false in production")
+        if not self.public_app_url.startswith("https://"):
+            problems.append("PROCURAX_PUBLIC_APP_URL must use HTTPS in production (the web app's URL)")
+        elif not self.cors_origins or any(
+            origin == "*" or not origin.startswith("https://") for origin in self.cors_origins
+        ):
+            problems.append("Production CORS origins must be explicit HTTPS origins")
+        if problems:
+            raise ValueError("Production settings incomplete:\n- " + "\n- ".join(problems))
         return self
 
 

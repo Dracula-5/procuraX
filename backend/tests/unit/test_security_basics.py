@@ -50,6 +50,7 @@ def test_public_demo_allows_demo_mode_in_prod_and_disables_registration() -> Non
         "public_app_url": "https://procurax.example",
         "cors_origins": ["https://procurax.example"],
         "demo_mode": True,
+        "database_url": "postgresql+asyncpg://app:pw@db.example/procurax",
     }
     with pytest.raises(ValueError, match="PROCURAX_PUBLIC_DEMO"):
         Settings(**base)
@@ -73,7 +74,32 @@ def test_provider_database_urls_are_normalized_for_asyncpg() -> None:
 def test_cors_defaults_to_the_public_app_origin() -> None:
     from app.core.config import Settings
 
-    prod = Settings(env="prod", jwt_secret="x" * 40, demo_mode=False, public_app_url="https://web.example/")
+    prod = Settings(
+        env="prod",
+        jwt_secret="x" * 40,
+        demo_mode=False,
+        public_app_url="https://web.example/",
+        database_url="postgresql+asyncpg://app:pw@db.example/procurax",
+    )
     assert prod.cors_origins == ["https://web.example"]
     explicit = Settings(public_app_url="http://localhost:5173", cors_origins=["http://localhost:3000"])
     assert explicit.cors_origins == ["http://localhost:3000"]
+
+
+def test_bare_production_env_lists_every_missing_setting_at_once(monkeypatch) -> None:
+    import os
+
+    from app.core.config import Settings
+
+    for key in [k for k in os.environ if k.startswith("PROCURAX_")]:
+        monkeypatch.delenv(key)
+    with pytest.raises(ValueError) as error:
+        Settings(env="prod", _env_file=None)  # a host where only PROCURAX_ENV was configured
+    message = str(error.value)
+    for setting in (
+        "PROCURAX_JWT_SECRET",
+        "PROCURAX_DATABASE_URL",
+        "PROCURAX_DEMO_MODE",
+        "PROCURAX_PUBLIC_APP_URL",
+    ):
+        assert setting in message
