@@ -1,0 +1,9 @@
+[
+  {"method": "GET", "path": "/api/v1/vendors"},
+  {"method": "GET", "path": "/api/v1/spend-analytics"},
+  {
+    "method": "POST",
+    "path": "/api/v1/procurement-assistant/query",
+    "json": {"question": "Show unmatched invoices"}
+  }
+]

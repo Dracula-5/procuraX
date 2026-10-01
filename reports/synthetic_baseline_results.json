@@ -1,0 +1,149 @@
+{
+    "generated_on":  "2026-10-01",
+    "host":  "local Windows workspace; Python 3.12.7",
+    "spend_classification":  {
+                                 "dataset":  "synthetic_procurement_text_v1",
+                                 "synthetic":  true,
+                                 "seed":  23,
+                                 "examples_per_class":  100,
+                                 "train_size":  800,
+                                 "test_size":  200,
+                                 "split":  "stratified 80/20, generated from category-specific vocabulary templates",
+                                 "model":  "word TF-IDF + multinomial logistic regression (sparse SGD, 40 epochs)",
+                                 "metrics":  {
+                                                 "accuracy":  1.0,
+                                                 "macro_f1":  1.0,
+                                                 "per_class":  {
+                                                                   "facilities":  {
+                                                                                      "support":  20,
+                                                                                      "precision":  1.0,
+                                                                                      "recall":  1.0,
+                                                                                      "f1":  1.0
+                                                                                  },
+                                                                   "hardware":  {
+                                                                                    "support":  20,
+                                                                                    "precision":  1.0,
+                                                                                    "recall":  1.0,
+                                                                                    "f1":  1.0
+                                                                                },
+                                                                   "it_services":  {
+                                                                                       "support":  20,
+                                                                                       "precision":  1.0,
+                                                                                       "recall":  1.0,
+                                                                                       "f1":  1.0
+                                                                                   },
+                                                                   "logistics":  {
+                                                                                     "support":  20,
+                                                                                     "precision":  1.0,
+                                                                                     "recall":  1.0,
+                                                                                     "f1":  1.0
+                                                                                 },
+                                                                   "manufacturing":  {
+                                                                                         "support":  20,
+                                                                                         "precision":  1.0,
+                                                                                         "recall":  1.0,
+                                                                                         "f1":  1.0
+                                                                                     },
+                                                                   "marketing":  {
+                                                                                     "support":  20,
+                                                                                     "precision":  1.0,
+                                                                                     "recall":  1.0,
+                                                                                     "f1":  1.0
+                                                                                 },
+                                                                   "office_supplies":  {
+                                                                                           "support":  20,
+                                                                                           "precision":  1.0,
+                                                                                           "recall":  1.0,
+                                                                                           "f1":  1.0
+                                                                                       },
+                                                                   "professional_services":  {
+                                                                                                 "support":  20,
+                                                                                                 "precision":  1.0,
+                                                                                                 "recall":  1.0,
+                                                                                                 "f1":  1.0
+                                                                                             },
+                                                                   "software":  {
+                                                                                    "support":  20,
+                                                                                    "precision":  1.0,
+                                                                                    "recall":  1.0,
+                                                                                    "f1":  1.0
+                                                                                },
+                                                                   "travel":  {
+                                                                                  "support":  20,
+                                                                                  "precision":  1.0,
+                                                                                  "recall":  1.0,
+                                                                                  "f1":  1.0
+                                                                              }
+                                                               }
+                                             },
+                                 "inference_latency_ms":  {
+                                                              "p50":  0.0229,
+                                                              "p95":  0.024
+                                                          },
+                                 "limitations":  [
+                                                     "Synthetic template data only; not representative of enterprise descriptions.",
+                                                     "Random split shares the same vocabulary generator; scores measure pipeline operation, not expected production accuracy.",
+                                                     "No transformer candidate or public dataset comparison was run."
+                                                 ]
+                             },
+    "spend_anomaly":  {
+                          "dataset":  "synthetic_spend_amounts_v1",
+                          "synthetic":  true,
+                          "seed":  29,
+                          "observations":  525,
+                          "positive_labels":  25,
+                          "injection":  "5 transactions per category multiplied by 12x after log-normal sampling",
+                          "baseline":  "same-category median + robust log-MAD score \u003e= 3.5",
+                          "metrics":  {
+                                          "precision":  1.0,
+                                          "recall":  1.0,
+                                          "f1":  1.0,
+                                          "false_positive_rate":  0.0,
+                                          "true_positive":  25,
+                                          "false_positive":  0,
+                                          "false_negative":  0
+                                      },
+                          "limitations":  [
+                                              "Synthetic log-normal amount distributions only; not representative procurement history.",
+                                              "Only high-side amount anomalies are evaluated; no temporal, vendor, department or split-purchase signals.",
+                                              "No learned candidate or production alert workflow was evaluated."
+                                          ]
+                      },
+    "invoice_text_parser":  {
+                                "dataset":  "synthetic_labeled_invoice_text_v1",
+                                "synthetic":  true,
+                                "seed":  31,
+                                "samples":  100,
+                                "fields":  [
+                                               "vendor",
+                                               "invoice_number",
+                                               "invoice_date",
+                                               "purchase_order_number",
+                                               "currency",
+                                               "quantity",
+                                               "subtotal",
+                                               "tax",
+                                               "total"
+                                           ],
+                                "baseline":  "exact labeled-line extraction with decimal normalization; no OCR or layout model",
+                                "field_exact_match_accuracy":  {
+                                                                   "vendor":  1.0,
+                                                                   "invoice_number":  1.0,
+                                                                   "invoice_date":  1.0,
+                                                                   "purchase_order_number":  1.0,
+                                                                   "currency":  1.0,
+                                                                   "quantity":  1.0,
+                                                                   "subtotal":  1.0,
+                                                                   "tax":  1.0,
+                                                                   "total":  1.0
+                                                               },
+                                "average_field_accuracy":  1.0,
+                                "end_to_end_invoice_exact_match":  1.0,
+                                "average_latency_ms_per_invoice":  0.1587,
+                                "limitations":  [
+                                                    "Generated text uses the same explicit labels and line structure expected by the parser.",
+                                                    "No scanned image, PDF, OCR, handwriting, table layout, locale variation or adversarial document was tested.",
+                                                    "This is a parser smoke check only and is not invoice automation or field accuracy on real documents."
+                                                ]
+                            }
+}

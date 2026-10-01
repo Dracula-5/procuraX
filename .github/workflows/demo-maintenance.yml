@@ -1,0 +1,51 @@
+# Scheduled jobs for the free deployment, which sleeps when idle (so in-process timers do not run):
+#   - hourly approval SLA escalation sweep (advisory-locked, so it never overlaps the API's own sweep)
+#   - nightly reset of the fictional public demo tenant at 03:00 JST
+# Secrets: NEON_OWNER_DATABASE_URL (owner role) and NEON_APP_DATABASE_URL (runtime role procurax_app).
+# GitHub pauses scheduled workflows after 60 days without repository activity; re-enable in Actions.
+name: Demo maintenance
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      reset_demo:
+        description: Reset the demo tenant now
+        type: boolean
+        default: false
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      PROCURAX_DATABASE_ADMIN_URL: ${{ secrets.NEON_OWNER_DATABASE_URL }}
+      PROCURAX_DATABASE_URL: ${{ secrets.NEON_APP_DATABASE_URL }}
+    steps:
+      - name: Check secrets
+        id: configured
+        working-directory: .
+        run: |
+          if [ -n "$PROCURAX_DATABASE_ADMIN_URL" ] && [ -n "$PROCURAX_DATABASE_URL" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Database secrets are not configured; skipping (see docs/deployment.md)."
+          fi
+      - uses: actions/checkout@v4
+        if: steps.configured.outputs.ready == 'true'
+      - uses: astral-sh/setup-uv@v6
+        if: steps.configured.outputs.ready == 'true'
+      - run: uv sync --frozen --no-dev
+        if: steps.configured.outputs.ready == 'true'
+      - name: Reset demo tenant (nightly)
+        if: >-
+          steps.configured.outputs.ready == 'true' &&
+          (github.event.schedule == '0 18 * * *' || inputs.reset_demo)
+        run: uv run python -m app.scripts.seed_demo --reset
+      - name: Approval SLA escalation sweep
+        if: steps.configured.outputs.ready == 'true'
+        run: uv run python scripts/run_sla_escalations.py

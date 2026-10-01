@@ -1,0 +1,57 @@
+{
+  "dataset": "synthetic_vendor_preferences_v1",
+  "synthetic": true,
+  "seed": 41,
+  "evaluation_seed": 42,
+  "train_queries": 80,
+  "evaluation_queries": 40,
+  "vendors_per_query": 6,
+  "features": [
+    "price",
+    "delivery",
+    "quality",
+    "contract",
+    "on_time",
+    "acceptance",
+    "low_risk"
+  ],
+  "relevance": "generated from a fixed hidden utility formula; top two candidates are positive",
+  "baseline": {
+    "method": "existing price/delivery/quality/contract weights",
+    "metrics": {
+      "ndcg@3": 0.7125,
+      "precision@3": 0.5083,
+      "recall@3": 0.7625
+    },
+    "latency": {
+      "p50_ms": 0.0079,
+      "p95_ms": 0.0102
+    }
+  },
+  "pairwise_ltr": {
+    "method": "linear pairwise logistic SGD",
+    "learned_weights": [
+      4.9187,
+      3.3562,
+      3.5625,
+      2.6667,
+      5.7238,
+      4.0248,
+      2.9736
+    ],
+    "metrics": {
+      "ndcg@3": 0.9745,
+      "precision@3": 0.6583,
+      "recall@3": 0.9875
+    },
+    "latency": {
+      "p50_ms": 0.008,
+      "p95_ms": 0.0128
+    }
+  },
+  "limitations": [
+    "Synthetic preferences are generated from a known formula, not procurement outcomes.",
+    "Metrics demonstrate evaluator mechanics only and do not support vendor recommendation claims.",
+    "Latency excludes database queries, feature construction, and network overhead."
+  ]
+}

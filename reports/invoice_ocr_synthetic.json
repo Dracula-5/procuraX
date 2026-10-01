@@ -1,0 +1,660 @@
+{
+  "dataset": "synthetic_rendered_invoices_v1",
+  "synthetic": true,
+  "seeds": {
+    "dev": 53,
+    "held_out": 54
+  },
+  "samples_per_split": 40,
+  "generated_on": "2026-10-01",
+  "engine": "tesseract 5.5.3",
+  "languages": "eng",
+  "pipeline": "production adapter extract_ocr_text (--psm 6) + labeled-line parser extract_invoice_text",
+  "parser_modes": {
+    "strict": "Exact 'Label: value' extraction with amount normalisation (the earlier baseline)",
+    "ocr_tolerant": "Adds punctuation clean-up for code fields, digit-confusion mapping in amounts and a registration-number 'T' repair accepted only when the check digit validates"
+  },
+  "methodology": "Clean-up rules were written after inspecting dev-split errors; the held-out split was generated with a different seed and not inspected, so it is the comparison to quote.",
+  "conditions": {
+    "clean": "Rendered A4 page at 150 dpi, PNG",
+    "degraded_scan": "Rotation ±1.5°, Gaussian blur 0.9 px, 0.25% speckle, JPEG quality 30",
+    "low_resolution": "Half-scale render (~75 dpi), PNG",
+    "clean_pdf": "Every fourth clean render wrapped in an image PDF (pdftoppm path)"
+  },
+  "results": {
+    "dev": {
+      "strict": {
+        "clean": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.925,
+            "invoice_number": 0.975,
+            "invoice_date": 1.0,
+            "registration_number": 0.825,
+            "purchase_order_number": 0.95,
+            "currency": 1.0,
+            "quantity": 1.0,
+            "subtotal": 1.0,
+            "tax": 1.0,
+            "total": 1.0
+          },
+          "average_field_accuracy": 0.9675,
+          "wrong_value_rate": 0.0325,
+          "document_exact_match": 0.725,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 429.5,
+            "p95": 609.0
+          }
+        },
+        "degraded_scan": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.4,
+            "invoice_number": 0.55,
+            "invoice_date": 0.6,
+            "registration_number": 0.35,
+            "purchase_order_number": 0.55,
+            "currency": 0.575,
+            "quantity": 0.65,
+            "subtotal": 0.55,
+            "tax": 0.675,
+            "total": 0.725
+          },
+          "average_field_accuracy": 0.5625,
+          "wrong_value_rate": 0.24,
+          "document_exact_match": 0.0,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 498.5,
+            "p95": 684.7
+          }
+        },
+        "low_resolution": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.375,
+            "invoice_number": 0.925,
+            "invoice_date": 0.95,
+            "registration_number": 0.325,
+            "purchase_order_number": 0.975,
+            "currency": 1.0,
+            "quantity": 0.725,
+            "subtotal": 0.85,
+            "tax": 0.75,
+            "total": 0.925
+          },
+          "average_field_accuracy": 0.78,
+          "wrong_value_rate": 0.1275,
+          "document_exact_match": 0.075,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 299.4,
+            "p95": 411.5
+          }
+        },
+        "clean_pdf": {
+          "documents": 10,
+          "field_exact_match_accuracy": {
+            "vendor": 1.0,
+            "invoice_number": 0.9,
+            "invoice_date": 1.0,
+            "registration_number": 0.9,
+            "purchase_order_number": 0.9,
+            "currency": 1.0,
+            "quantity": 1.0,
+            "subtotal": 1.0,
+            "tax": 1.0,
+            "total": 1.0
+          },
+          "average_field_accuracy": 0.97,
+          "wrong_value_rate": 0.03,
+          "document_exact_match": 0.8,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 1489.7,
+            "p95": 1713.5
+          }
+        }
+      },
+      "ocr_tolerant": {
+        "clean": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.925,
+            "invoice_number": 0.975,
+            "invoice_date": 1.0,
+            "registration_number": 1.0,
+            "purchase_order_number": 0.95,
+            "currency": 1.0,
+            "quantity": 1.0,
+            "subtotal": 1.0,
+            "tax": 1.0,
+            "total": 1.0
+          },
+          "average_field_accuracy": 0.985,
+          "wrong_value_rate": 0.015,
+          "document_exact_match": 0.875,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 429.5,
+            "p95": 609.0
+          }
+        },
+        "degraded_scan": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.4,
+            "invoice_number": 0.65,
+            "invoice_date": 0.85,
+            "registration_number": 0.8,
+            "purchase_order_number": 0.7,
+            "currency": 0.925,
+            "quantity": 0.8,
+            "subtotal": 0.8,
+            "tax": 0.875,
+            "total": 0.875
+          },
+          "average_field_accuracy": 0.7675,
+          "wrong_value_rate": 0.1025,
+          "document_exact_match": 0.05,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 498.5,
+            "p95": 684.7
+          }
+        },
+        "low_resolution": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.375,
+            "invoice_number": 0.925,
+            "invoice_date": 1.0,
+            "registration_number": 0.725,
+            "purchase_order_number": 0.975,
+            "currency": 1.0,
+            "quantity": 0.725,
+            "subtotal": 0.85,
+            "tax": 0.75,
+            "total": 0.925
+          },
+          "average_field_accuracy": 0.825,
+          "wrong_value_rate": 0.06,
+          "document_exact_match": 0.3,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 299.4,
+            "p95": 411.5
+          }
+        },
+        "clean_pdf": {
+          "documents": 10,
+          "field_exact_match_accuracy": {
+            "vendor": 1.0,
+            "invoice_number": 0.9,
+            "invoice_date": 1.0,
+            "registration_number": 1.0,
+            "purchase_order_number": 1.0,
+            "currency": 1.0,
+            "quantity": 1.0,
+            "subtotal": 1.0,
+            "tax": 1.0,
+            "total": 1.0
+          },
+          "average_field_accuracy": 0.99,
+          "wrong_value_rate": 0.01,
+          "document_exact_match": 0.9,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 1489.7,
+            "p95": 1713.5
+          }
+        }
+      }
+    },
+    "held_out": {
+      "strict": {
+        "clean": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.95,
+            "invoice_number": 0.975,
+            "invoice_date": 1.0,
+            "registration_number": 0.825,
+            "purchase_order_number": 0.975,
+            "currency": 1.0,
+            "quantity": 1.0,
+            "subtotal": 1.0,
+            "tax": 1.0,
+            "total": 1.0
+          },
+          "average_field_accuracy": 0.9725,
+          "wrong_value_rate": 0.0275,
+          "document_exact_match": 0.75,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 401.1,
+            "p95": 533.9
+          }
+        },
+        "degraded_scan": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.575,
+            "invoice_number": 0.725,
+            "invoice_date": 0.575,
+            "registration_number": 0.525,
+            "purchase_order_number": 0.55,
+            "currency": 0.65,
+            "quantity": 0.6,
+            "subtotal": 0.825,
+            "tax": 0.675,
+            "total": 0.525
+          },
+          "average_field_accuracy": 0.6225,
+          "wrong_value_rate": 0.1925,
+          "document_exact_match": 0.0,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 472.2,
+            "p95": 576.5
+          }
+        },
+        "low_resolution": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.25,
+            "invoice_number": 0.925,
+            "invoice_date": 0.875,
+            "registration_number": 0.275,
+            "purchase_order_number": 0.975,
+            "currency": 1.0,
+            "quantity": 0.575,
+            "subtotal": 0.8,
+            "tax": 0.65,
+            "total": 0.775
+          },
+          "average_field_accuracy": 0.71,
+          "wrong_value_rate": 0.1725,
+          "document_exact_match": 0.025,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 282.2,
+            "p95": 369.9
+          }
+        },
+        "clean_pdf": {
+          "documents": 10,
+          "field_exact_match_accuracy": {
+            "vendor": 1.0,
+            "invoice_number": 1.0,
+            "invoice_date": 1.0,
+            "registration_number": 0.9,
+            "purchase_order_number": 0.9,
+            "currency": 1.0,
+            "quantity": 1.0,
+            "subtotal": 1.0,
+            "tax": 1.0,
+            "total": 1.0
+          },
+          "average_field_accuracy": 0.98,
+          "wrong_value_rate": 0.02,
+          "document_exact_match": 0.8,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 1557.7,
+            "p95": 1672.8
+          }
+        }
+      },
+      "ocr_tolerant": {
+        "clean": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.95,
+            "invoice_number": 0.975,
+            "invoice_date": 1.0,
+            "registration_number": 1.0,
+            "purchase_order_number": 0.975,
+            "currency": 1.0,
+            "quantity": 1.0,
+            "subtotal": 1.0,
+            "tax": 1.0,
+            "total": 1.0
+          },
+          "average_field_accuracy": 0.99,
+          "wrong_value_rate": 0.01,
+          "document_exact_match": 0.9,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 401.1,
+            "p95": 533.9
+          }
+        },
+        "degraded_scan": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.575,
+            "invoice_number": 0.925,
+            "invoice_date": 0.8,
+            "registration_number": 0.8,
+            "purchase_order_number": 0.675,
+            "currency": 0.975,
+            "quantity": 0.85,
+            "subtotal": 0.925,
+            "tax": 0.8,
+            "total": 0.75
+          },
+          "average_field_accuracy": 0.8075,
+          "wrong_value_rate": 0.06,
+          "document_exact_match": 0.15,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 472.2,
+            "p95": 576.5
+          }
+        },
+        "low_resolution": {
+          "documents": 40,
+          "field_exact_match_accuracy": {
+            "vendor": 0.25,
+            "invoice_number": 0.925,
+            "invoice_date": 1.0,
+            "registration_number": 0.55,
+            "purchase_order_number": 0.975,
+            "currency": 1.0,
+            "quantity": 0.575,
+            "subtotal": 0.8,
+            "tax": 0.65,
+            "total": 0.775
+          },
+          "average_field_accuracy": 0.75,
+          "wrong_value_rate": 0.09,
+          "document_exact_match": 0.15,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 282.2,
+            "p95": 369.9
+          }
+        },
+        "clean_pdf": {
+          "documents": 10,
+          "field_exact_match_accuracy": {
+            "vendor": 1.0,
+            "invoice_number": 1.0,
+            "invoice_date": 1.0,
+            "registration_number": 1.0,
+            "purchase_order_number": 0.9,
+            "currency": 1.0,
+            "quantity": 1.0,
+            "subtotal": 1.0,
+            "tax": 1.0,
+            "total": 1.0
+          },
+          "average_field_accuracy": 0.99,
+          "wrong_value_rate": 0.01,
+          "document_exact_match": 0.9,
+          "processing_errors": 0,
+          "ocr_latency_ms": {
+            "p50": 1557.7,
+            "p95": 1672.8
+          }
+        }
+      }
+    }
+  },
+  "held_out_error_examples_ocr_tolerant": [
+    {
+      "sample": 0,
+      "condition": "degraded_scan",
+      "mistakes": {
+        "purchase_order_number": {
+          "expected": "PO-2026-229639",
+          "predicted": "PO-2026:229639"
+        }
+      }
+    },
+    {
+      "sample": 0,
+      "condition": "low_resolution",
+      "mistakes": {
+        "vendor": {
+          "expected": "Hikari Supply 000 K.K.",
+          "predicted": "Hikari Supply 000 KK."
+        }
+      }
+    },
+    {
+      "sample": 1,
+      "condition": "degraded_scan",
+      "mistakes": {
+        "vendor": {
+          "expected": "Sakura Supply 001 K.K.",
+          "predicted": null
+        },
+        "registration_number": {
+          "expected": "T9272945226676",
+          "predicted": null
+        },
+        "purchase_order_number": {
+          "expected": "PO-2026-920485",
+          "predicted": null
+        },
+        "subtotal": {
+          "expected": "2785000",
+          "predicted": null
+        },
+        "tax": {
+          "expected": "278500",
+          "predicted": null
+        },
+        "total": {
+          "expected": "3063500",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 1,
+      "condition": "low_resolution",
+      "mistakes": {
+        "vendor": {
+          "expected": "Sakura Supply 001 K.K.",
+          "predicted": null
+        },
+        "registration_number": {
+          "expected": "T9272945226676",
+          "predicted": null
+        },
+        "quantity": {
+          "expected": "20",
+          "predicted": null
+        },
+        "tax": {
+          "expected": "278500",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 2,
+      "condition": "degraded_scan",
+      "mistakes": {
+        "invoice_date": {
+          "expected": "2026-11-17",
+          "predicted": "2026-11-17 ‘ i"
+        },
+        "tax": {
+          "expected": "334880",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 2,
+      "condition": "low_resolution",
+      "mistakes": {
+        "vendor": {
+          "expected": "Minato Supply 002 K.K.",
+          "predicted": "Minato Supply 002 KK."
+        },
+        "registration_number": {
+          "expected": "T6894640760461",
+          "predicted": null
+        },
+        "quantity": {
+          "expected": "32",
+          "predicted": null
+        },
+        "subtotal": {
+          "expected": "3348800",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 3,
+      "condition": "degraded_scan",
+      "mistakes": {
+        "vendor": {
+          "expected": "Minato Supply 003 K.K.",
+          "predicted": null
+        },
+        "invoice_date": {
+          "expected": "2026-05-05",
+          "predicted": "2026-05;05"
+        },
+        "quantity": {
+          "expected": "12",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 3,
+      "condition": "low_resolution",
+      "mistakes": {
+        "vendor": {
+          "expected": "Minato Supply 003 K.K.",
+          "predicted": "Minato Supply 003 KK."
+        },
+        "quantity": {
+          "expected": "12",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 4,
+      "condition": "low_resolution",
+      "mistakes": {
+        "registration_number": {
+          "expected": "T2844899153498",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 5,
+      "condition": "degraded_scan",
+      "mistakes": {
+        "subtotal": {
+          "expected": "347900",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 5,
+      "condition": "low_resolution",
+      "mistakes": {
+        "vendor": {
+          "expected": "Aoba Supply 005 K.K.",
+          "predicted": null
+        },
+        "registration_number": {
+          "expected": "T3887250406833",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 6,
+      "condition": "degraded_scan",
+      "mistakes": {
+        "purchase_order_number": {
+          "expected": "PO-2026-549968",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 6,
+      "condition": "low_resolution",
+      "mistakes": {
+        "vendor": {
+          "expected": "Aoba Supply 006 K.K.",
+          "predicted": null
+        },
+        "quantity": {
+          "expected": "57",
+          "predicted": null
+        },
+        "tax": {
+          "expected": "276450",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 7,
+      "condition": "degraded_scan",
+      "mistakes": {
+        "invoice_date": {
+          "expected": "2026-10-28",
+          "predicted": null
+        },
+        "purchase_order_number": {
+          "expected": "PO-2026-575757",
+          "predicted": "PO-2026-575757 i"
+        },
+        "total": {
+          "expected": "4041125",
+          "predicted": null
+        }
+      }
+    },
+    {
+      "sample": 7,
+      "condition": "low_resolution",
+      "mistakes": {
+        "vendor": {
+          "expected": "Aoba Supply 007 K.K.",
+          "predicted": null
+        },
+        "registration_number": {
+          "expected": "T9828378827387",
+          "predicted": null
+        },
+        "quantity": {
+          "expected": "25",
+          "predicted": null
+        },
+        "tax": {
+          "expected": "367375",
+          "predicted": null
+        },
+        "total": {
+          "expected": "4041125",
+          "predicted": "4047125"
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Synthetic, English-labelled, single-column layouts rendered with one bundled font.",
+    "Fields are read only from 'Label: value' lines; the line-item table is a distractor, not parsed.",
+    "No real supplier invoices, Japanese text, handwriting, stamps (hanko), multi-page or skewed photos.",
+    "Accuracy here is not an estimate of production extraction accuracy."
+  ]
+}

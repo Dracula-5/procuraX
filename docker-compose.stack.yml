@@ -1,0 +1,67 @@
+# Production-shaped local stack: the same images and release order a hosted deployment uses.
+#
+#   PROCURAX_JWT_SECRET=$(python -c "import secrets;print(secrets.token_urlsafe(48))") \
+#   docker compose -f docker-compose.stack.yml up -d --build
+#   open http://localhost:8088          (PROCURAX_WEB_PORT overrides the host port)
+#
+# Release order: db healthy → migrate (owner role, one-shot) → api (runtime role, RLS enforced)
+# → web (nginx: SPA + /api reverse proxy). Only the web port is published. Demo mode is off, as
+# production settings require; register a tenant from the landing page.
+# Hosting still needs a platform decision: managed PostgreSQL replaces `db`, and TLS terminates
+# at the platform's load balancer in front of `web`.
+
+x-api-env: &api-env
+  PROCURAX_ENV: prod
+  PROCURAX_DATABASE_URL: postgresql+asyncpg://procurax_app:procurax_app_dev@db:5432/procurax
+  PROCURAX_DATABASE_ADMIN_URL: postgresql+asyncpg://procurax:procurax_dev@db:5432/procurax
+  PROCURAX_JWT_SECRET: ${PROCURAX_JWT_SECRET:?set PROCURAX_JWT_SECRET (32+ random characters)}
+  PROCURAX_DEMO_MODE: "false"
+  PROCURAX_PUBLIC_APP_URL: ${PROCURAX_PUBLIC_APP_URL:-https://procurax.example}
+  PROCURAX_CORS_ORIGINS: '["${PROCURAX_PUBLIC_APP_URL:-https://procurax.example}"]'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: procurax
+      POSTGRES_PASSWORD: procurax_dev
+      POSTGRES_DB: procurax
+    volumes:
+      - procurax_stack_pg:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U procurax -d procurax"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: ./backend
+    image: procurax-api:local
+    command: ["alembic", "upgrade", "head"]
+    environment: *api-env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    image: procurax-api:local
+    environment:
+      <<: *api-env
+      PROCURAX_SLA_ESCALATION_INTERVAL_SECONDS: "900"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build: ./frontend
+    image: procurax-web:local
+    ports:
+      - "${PROCURAX_WEB_PORT:-8088}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  procurax_stack_pg:

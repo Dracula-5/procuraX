@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+/* Design tokens. Components use the semantic names (bg-surface, text-muted, …) so both
+   themes come from one set of variables. */
+:root {
+  --bg: #f5f7f8;
+  --surface: #ffffff;
+  --surface-2: #f0f3f4;
+  --border: #dde3e6;
+  --fg: #14212b;
+  --muted: #5a6b76;
+  --primary: #0f5c63;
+  --primary-hover: #0b484e;
+  --primary-fg: #ffffff;
+  --primary-soft: #e3f1f0;
+  --ok: #1d7a46;
+  --ok-soft: #e4f4ea;
+  --warn: #9a5b00;
+  --warn-soft: #fdf1dc;
+  --danger: #b42318;
+  --danger-soft: #fdeceb;
+  --info: #1f5fa8;
+  --info-soft: #e6f0fb;
+  --neutral-soft: #eceff1;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1519;
+    --surface: #151f25;
+    --surface-2: #1b272e;
+    --border: #2a3942;
+    --fg: #e4ecef;
+    --muted: #93a6b0;
+    --primary: #4fb5aa;
+    --primary-hover: #6cc7bd;
+    --primary-fg: #06201e;
+    --primary-soft: #16312f;
+    --ok: #5cc98a;
+    --ok-soft: #15301f;
+    --warn: #f0b458;
+    --warn-soft: #33260f;
+    --danger: #f2877e;
+    --danger-soft: #3a1917;
+    --info: #7fb2ec;
+    --info-soft: #152a42;
+    --neutral-soft: #223038;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-soft: var(--primary-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-neutral-soft: var(--neutral-soft);
+  --font-sans: "Inter", "Hiragino Sans", "Noto Sans JP", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

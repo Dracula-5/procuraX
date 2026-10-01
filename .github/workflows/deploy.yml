@@ -1,0 +1,61 @@
+# Release on the free tier: migrate the Neon database as the owner role, then trigger Render.
+# Runs after CI passes on main (or manually). Until the secrets below exist it does nothing.
+#
+# Repository secrets (Settings → Secrets and variables → Actions):
+#   NEON_OWNER_DATABASE_URL   Neon connection string for the owner role (paste as shown by Neon)
+#   NEON_APP_DATABASE_URL     Neon connection string for the procurax_app runtime role
+#   RENDER_API_DEPLOY_HOOK    Render → procurax-api → Settings → Deploy Hook
+#   RENDER_WEB_DEPLOY_HOOK    Render → procurax-web → Settings → Deploy Hook
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      PROCURAX_DATABASE_ADMIN_URL: ${{ secrets.NEON_OWNER_DATABASE_URL }}
+      PROCURAX_DATABASE_URL: ${{ secrets.NEON_APP_DATABASE_URL }}
+      RENDER_API_DEPLOY_HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
+      RENDER_WEB_DEPLOY_HOOK: ${{ secrets.RENDER_WEB_DEPLOY_HOOK }}
+    steps:
+      - name: Check deployment secrets
+        id: configured
+        working-directory: .
+        run: |
+          if [ -n "$PROCURAX_DATABASE_ADMIN_URL" ] && [ -n "$RENDER_API_DEPLOY_HOOK" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Deployment secrets are not configured; skipping (see docs/deployment.md)."
+          fi
+      - uses: actions/checkout@v4
+        if: steps.configured.outputs.ready == 'true'
+      - uses: astral-sh/setup-uv@v6
+        if: steps.configured.outputs.ready == 'true'
+      - name: Migrate (release step, owner role)
+        if: steps.configured.outputs.ready == 'true'
+        run: |
+          uv sync --frozen --no-dev
+          uv run alembic upgrade head
+      - name: Create the fictional demo tenant if it does not exist yet
+        if: steps.configured.outputs.ready == 'true' && env.PROCURAX_DATABASE_URL != ''
+        run: uv run python -m app.scripts.seed_demo
+      - name: Deploy API and web
+        if: steps.configured.outputs.ready == 'true'
+        run: |
+          curl -fsS -X POST "$RENDER_API_DEPLOY_HOOK" > /dev/null
+          if [ -n "$RENDER_WEB_DEPLOY_HOOK" ]; then curl -fsS -X POST "$RENDER_WEB_DEPLOY_HOOK" > /dev/null; fi
+          echo "Deploys triggered; Render builds and health-checks /ready before switching traffic."

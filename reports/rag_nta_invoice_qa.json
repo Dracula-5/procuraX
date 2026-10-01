@@ -1,0 +1,46 @@
+{
+  "dataset": "nta_qualified_invoice_qa",
+  "synthetic": false,
+  "source": {
+    "title": "消費税の仕入税額控除制度における適格請求書等保存方式に関するＱ＆Ａ",
+    "publisher": "国税庁 (National Tax Agency, Japan)",
+    "url": "https://www.nta.go.jp/taxes/shiraberu/zeimokubetsu/shohi/keigenzeiritsu/pdf/qa/01-01.pdf",
+    "revision": "令和8年5月改訂",
+    "sha256": "d0e50ed858d7ea7d707edd9dd440878740aeb8f6c9c4994a47f2f167699d3763",
+    "license": "公共データ利用規約 第1.0版 (PDL1.0), CC BY 4.0 compatible",
+    "attribution": "出典：国税庁「消費税の仕入税額控除制度における適格請求書等保存方式に関するＱ＆Ａ」を加工して作成",
+    "edits": "Extracted Q&A pairs from the PDF text layer, normalised whitespace, removed revision tags"
+  },
+  "generated_on": "2026-10-01",
+  "queries": 171,
+  "answer_chunks": 299,
+  "task": "Official question → retrieve a chunk of its official answer among all answers (answer-level ranks)",
+  "ranker": "production BM25 (_rank_texts, k1=1.2, b=0.75) over production 900-character chunks",
+  "results": {
+    "ascii_words_baseline": {
+      "queries_with_no_terms": 100,
+      "recall_at_1": 0.1111,
+      "recall_at_5": 0.1579,
+      "mrr_at_10": 0.1377,
+      "latency_ms_per_query": {
+        "p50": 0.0,
+        "p95": 12.0
+      }
+    },
+    "cjk_bigram": {
+      "queries_with_no_terms": 0,
+      "recall_at_1": 0.7135,
+      "recall_at_5": 0.9064,
+      "mrr_at_10": 0.7935,
+      "latency_ms_per_query": {
+        "p50": 78.6,
+        "p95": 110.0
+      }
+    }
+  },
+  "limitations": [
+    "Questions come from the same document as the answers and often share its vocabulary, so this measures in-domain lexical retrieval, not paraphrased user questions.",
+    "One relevant answer per question; related answers that also help are counted as misses.",
+    "Retrieval only: no generated answer, and citation usefulness is not human-judged."
+  ]
+}

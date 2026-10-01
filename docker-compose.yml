@@ -1,0 +1,24 @@
+# Local development infrastructure.
+# pgvector image = stock PostgreSQL 16 + a vector extension reserved for future semantic
+# retrieval; the current P13 policy-retrieval baseline uses BM25 and does not use vectors.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: procurax-postgres
+    environment:
+      POSTGRES_USER: procurax
+      POSTGRES_PASSWORD: procurax_dev
+      POSTGRES_DB: procurax
+    ports:
+      - "55433:5432"
+    volumes:
+      - procurax_pg:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U procurax -d procurax"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  procurax_pg:

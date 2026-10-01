@@ -1,0 +1,21 @@
+{
+  "dataset": "synthetic_procurement_knowledge_v1",
+  "synthetic": true,
+  "queries": 32,
+  "documents": 32,
+  "k": 5,
+  "metrics": {
+    "recall@5": 1.0,
+    "mrr@5": 1.0,
+    "citation_correct_at_1": 1.0
+  },
+  "latency_ms": {
+    "p50": 0.454,
+    "p95": 0.7622
+  },
+  "limitations": [
+    "Each query repeats the target document's exact topic words.",
+    "This is a retrieval implementation smoke check, not a realistic corpus evaluation.",
+    "No answer-generation, semantic retrieval, faithfulness or user relevance is tested."
+  ]
+}
