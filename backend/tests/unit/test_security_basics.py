@@ -103,3 +103,19 @@ def test_bare_production_env_lists_every_missing_setting_at_once(monkeypatch) ->
         "PROCURAX_PUBLIC_APP_URL",
     ):
         assert setting in message
+
+
+def test_public_url_paste_mistakes_are_tolerated_and_bad_values_are_named(monkeypatch) -> None:
+    from app.core.config import Settings
+
+    common = {
+        "env": "prod",
+        "jwt_secret": "x" * 40,
+        "demo_mode": False,
+        "database_url": "postgresql://u:p@h/db",
+    }
+    pasted = Settings(**common, public_app_url='  "https://procurax.netlify.app/" ')
+    assert pasted.public_app_url == "https://procurax.netlify.app"
+    assert pasted.cors_origins == ["https://procurax.netlify.app"]
+    with pytest.raises(ValueError, match="got 'procurax.netlify.app'"):
+        Settings(**common, public_app_url="procurax.netlify.app")

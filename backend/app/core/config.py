@@ -78,6 +78,12 @@ class Settings(BaseSettings):
     tessdata_path: str | None = None
     ocr_languages: str = "eng"
 
+    @field_validator("public_app_url")
+    @classmethod
+    def _clean_public_url(cls, value: str) -> str:
+        # Tolerate common dashboard paste mistakes: surrounding spaces/quotes and a trailing slash.
+        return value.strip().strip("'\"").strip().rstrip("/")
+
     @field_validator("database_url", "database_admin_url")
     @classmethod
     def _normalize_database_url(cls, value: str) -> str:
@@ -106,7 +112,12 @@ class Settings(BaseSettings):
         if self.db_echo:
             problems.append("PROCURAX_DB_ECHO must be false in production")
         if not self.public_app_url.startswith("https://"):
-            problems.append("PROCURAX_PUBLIC_APP_URL must use HTTPS in production (the web app's URL)")
+            source = (
+                "not set" if "public_app_url" not in self.model_fields_set else f"got {self.public_app_url!r}"
+            )
+            problems.append(
+                f"PROCURAX_PUBLIC_APP_URL must be the web app's https:// URL in production ({source})"
+            )
         elif not self.cors_origins or any(
             origin == "*" or not origin.startswith("https://") for origin in self.cors_origins
         ):
