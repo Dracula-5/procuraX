@@ -36,10 +36,12 @@ jobs:
         id: configured
         working-directory: .
         run: |
-          if [ -n "$PROCURAX_DATABASE_ADMIN_URL" ] && [ -n "$RENDER_API_DEPLOY_HOOK" ]; then
+          # Migrating needs only the database secret; the Render hook is optional (without it, deploy
+          # from the Render dashboard after this job).
+          if [ -n "$PROCURAX_DATABASE_ADMIN_URL" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Deployment secrets are not configured; skipping (see docs/deployment.md)."
+            echo "::warning::NEON_OWNER_DATABASE_URL is not set; nothing was migrated (see docs/deployment.md)."
           fi
       - uses: actions/checkout@v4
         if: steps.configured.outputs.ready == 'true'
@@ -53,8 +55,8 @@ jobs:
       - name: Create the fictional demo tenant if it does not exist yet
         if: steps.configured.outputs.ready == 'true' && env.PROCURAX_DATABASE_URL != ''
         run: uv run python -m app.scripts.seed_demo
-      - name: Deploy API and web
-        if: steps.configured.outputs.ready == 'true'
+      - name: Deploy API (and web, if hosted on Render)
+        if: steps.configured.outputs.ready == 'true' && env.RENDER_API_DEPLOY_HOOK != ''
         run: |
           curl -fsS -X POST "$RENDER_API_DEPLOY_HOOK" > /dev/null
           if [ -n "$RENDER_WEB_DEPLOY_HOOK" ]; then curl -fsS -X POST "$RENDER_WEB_DEPLOY_HOOK" > /dev/null; fi

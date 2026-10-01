@@ -1,0 +1,66 @@
+{
+  "dataset": "live_free_tier_smoke",
+  "synthetic": false,
+  "measured_on": "2026-10-01",
+  "deployment": {
+    "api": "https://procurax-mod8.onrender.com (Render Free web service, Docker, region Oregon)",
+    "web": "https://procurax.netlify.app (Netlify Free)",
+    "database": "Neon Free PostgreSQL"
+  },
+  "client": "Developer workstation over the public internet; scripts/load_test.py opens a new HTTPS connection per request",
+  "plan": "scripts/load_plan_public.json: GET /ready (runs SELECT 1 on Neon) and GET /api/v1/meta",
+  "cold_start": {
+    "first_ready_request_ms": 31041,
+    "note": "API had been idle; includes Render waking the instance"
+  },
+  "network_baseline": {
+    "endpoint": "/health (no database)",
+    "samples": 12,
+    "tcp_connect_median_ms": 79,
+    "time_to_first_byte_median_ms": 478,
+    "note": "Most per-request latency is the client-to-Oregon round trip plus a fresh TLS handshake, not server work"
+  },
+  "runs": [
+    {
+      "target": "https://procurax-mod8.onrender.com",
+      "concurrency": 1,
+      "duration_seconds": 30.143,
+      "requests": 30,
+      "requests_per_second": 1.0,
+      "success_rate": 1.0,
+      "latency_ms": {
+        "p50": 638.03,
+        "p95": 1721.8,
+        "p99": 1827.9,
+        "mean": 1004.6
+      },
+      "status_counts": {
+        "200": 30
+      },
+      "non_success_count": 0
+    },
+    {
+      "target": "https://procurax-mod8.onrender.com",
+      "concurrency": 5,
+      "duration_seconds": 30.88,
+      "requests": 148,
+      "requests_per_second": 4.79,
+      "success_rate": 1.0,
+      "latency_ms": {
+        "p50": 1434.39,
+        "p95": 1799.05,
+        "p99": 2517.15,
+        "mean": 1032.54
+      },
+      "status_counts": {
+        "200": 148
+      },
+      "non_success_count": 0
+    }
+  ],
+  "limitations": [
+    "Public, unauthenticated endpoints only; business endpoints were not loaded because the database was not migrated at the time.",
+    "Two 30-second runs at concurrency 1 and 5 against a free 512 MB instance; not a capacity estimate.",
+    "Latency is measured from one client location and includes TLS setup on every request."
+  ]
+}

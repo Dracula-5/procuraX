@@ -36,7 +36,7 @@ training on e-mail threads and spreadsheets.
 | P1 | Core procurement workflow | ✅ |
 | P2 | Authentication, RBAC, tenants | ✅ (SSO/MFA/refresh cookies deferred to P18) |
 | P3 | Database & APIs | ✅ |
-| P4 | Public deployment | 🟡 Free, no-card deployment scripted: `render.yaml` (API), `netlify.toml` (web app), Neon database, GitHub Actions for release migrations, hourly SLA sweep and nightly demo reset; public-demo mode. Rehearsed against a non-superuser-owner database locally. **Needs the owner's free accounts to go live** ([deployment.md](deployment.md)) |
+| P4 | Public deployment | 🟡 **Live on free tiers:** web https://procurax.netlify.app (Netlify), API https://procurax-mod8.onrender.com (Render Docker, prod settings, public-demo mode) with Neon PostgreSQL. CI builds the image; the Deploy workflow migrates as the owner role. Remaining: database migration and demo seed run once the GitHub database secrets are added |
 | P5 | Approval & policy engine: delegation, escalation job, notifications | 🟡 Delegation/revocation; SLA escalation scheduled in-process (advisory lock) or externally; external notifications remain |
 | P6 | Quote capture/comparison, PO lifecycle, receipts + invoice capture | 🟡 Eligibility-aware weighted baseline; optional supplier line prices flow exactly into PO lines; line receipts and invoice lines; OCR runs end to end with a recorded synthetic benchmark |
 | P7 | 3-way matching, duplicate invoice rules, payment approval | 🟡 Cumulative line matching, tax and registration checks, exception decisions, close rules, payment approval and Zengin 総合振込 transfer-file export (row-locked, once per payment) delivered; ProcuraX never moves money |

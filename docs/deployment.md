@@ -78,13 +78,9 @@ service as a Blueprint, an alternative to these dashboard steps.
 [`netlify.toml`](../netlify.toml) (base `frontend`, command `npm run build`, publish `dist`, Node 22,
 SPA rewrite, security headers), so leave the build fields as detected.
 
-Before the first deploy, under **Site configuration → Environment variables**, add:
-
-| Key | Value |
-|---|---|
-| `VITE_API_BASE_URL` | the Render API URL + `/api/v1`, e.g. `https://procurax.onrender.com/api/v1` |
-
-The value is compiled into the JavaScript: after changing it, use **Deploys → Trigger deploy**.
+The API address is set in `netlify.toml` (`VITE_API_BASE_URL`, currently
+`https://procurax-mod8.onrender.com/api/v1`) together with a CSP that allows only that origin. It is not a
+secret. If your Render URL differs, change both lines in `netlify.toml` and push; Netlify rebuilds.
 Then set the API's `PROCURAX_PUBLIC_APP_URL` (step 3) to the exact Netlify URL (`https://…netlify.app`,
 no trailing slash). It is also the only browser origin the API's CORS policy allows.
 
@@ -98,7 +94,7 @@ Repository → **Settings → Secrets and variables → Actions** → **New repo
 |---|---|
 | `NEON_OWNER_DATABASE_URL` | Neon owner string |
 | `NEON_APP_DATABASE_URL` | Neon runtime string |
-| `RENDER_API_DEPLOY_HOOK` | Render API deploy hook |
+| `RENDER_API_DEPLOY_HOOK` | Render API deploy hook (optional: without it, migrations still run, and you redeploy from Render) |
 
 Then **Actions → Deploy → Run workflow**. It runs `alembic upgrade head` as the owner (the release
 step), creates the fictional demo company if it does not exist yet, and triggers the Render deploy.
@@ -122,7 +118,7 @@ and the SLA sweep runs hourly, even while the API sleeps.
 | Render log: `PROCURAX_JWT_SECRET must be set` or `…must use HTTPS` | Environment variables missing | Complete the step 3 Environment table |
 | Render deploy fails on `/ready` | Wrong runtime DB string, or `procurax_app` missing | Re-check step 2; the Render log shows the database error |
 | API errors such as `relation "…" does not exist` | Migrations not run | Add the step 5 secrets and run **Actions → Deploy** |
-| Web shows "API is not reachable" | `VITE_API_BASE_URL` wrong, or not rebuilt after changing it | Fix it in Netlify and **Trigger deploy** |
+| Web shows "API is not reachable" | `VITE_API_BASE_URL` in `netlify.toml` points elsewhere | Fix it (and the CSP line) in `netlify.toml` and push |
 | Browser console shows a CORS error | `PROCURAX_PUBLIC_APP_URL` differs from the Netlify URL | Set it exactly (https, no trailing slash); Render redeploys on save |
 | Login page shows no personas | Demo tenant not created | Run **Demo maintenance** with *Reset the demo tenant* ticked |
 

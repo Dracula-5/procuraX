@@ -134,8 +134,14 @@ labelled as such. The parameterized formulas and input rules are in [business_ca
 
 ## Live demo
 
-Not publicly hosted yet. A free deployment needs no credit card: follow
-[docs/deployment.md](docs/deployment.md) (Neon + Render + Netlify + GitHub Actions, about 20 minutes). The production-shaped
+- **Web app:** https://procurax.netlify.app (Netlify Free)
+- **API:** https://procurax-mod8.onrender.com ([`/ready`](https://procurax-mod8.onrender.com/ready),
+  [`/api/v1/meta`](https://procurax-mod8.onrender.com/api/v1/meta), [API docs](https://procurax-mod8.onrender.com/api/v1/docs))
+  on Render Free with Neon Free PostgreSQL.
+
+Everything runs on free tiers. The API sleeps after 15 idle minutes, so the first visit can take
+about 30 seconds while it wakes (the site shows a notice). The demo data is fictional and resets nightly.
+Setup and operations: [docs/deployment.md](docs/deployment.md). The production-shaped
 container stack runs locally with `docker compose -f docker-compose.stack.yml up -d --build`
 (see the file header). In development, the demo tenant
 *ProcuraX Demo Manufacturing K.K. (fictional)* has 12 personas you can sign in as with one

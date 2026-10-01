@@ -1,7 +1,6 @@
 # Netlify (free) hosts the React SPA; the API runs on Render. See docs/deployment.md.
-# Set VITE_API_BASE_URL in Netlify → Site configuration → Environment variables to the Render API
-# URL + /api/v1 (e.g. https://procurax.onrender.com/api/v1). It is compiled into the bundle, so
-# trigger a new deploy after changing it.
+# VITE_API_BASE_URL is the public Render API address (not a secret). It is compiled into the
+# bundle at build time; change it here if the API moves, and Netlify rebuilds on push.
 
 [build]
   base = "frontend"          # all paths below are relative to this directory
@@ -10,6 +9,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  VITE_API_BASE_URL = "https://procurax-mod8.onrender.com/api/v1"
 
 # Client-side routes (/app, /purchase-to-pay, ...) all serve the SPA shell.
 [[redirects]]
@@ -23,8 +23,8 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    # The API is on Render (*.onrender.com); add your own API domain here if you use one.
-    Content-Security-Policy = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.onrender.com; frame-ancestors 'none'"
+    # The browser may call only this site and the ProcuraX API on Render.
+    Content-Security-Policy = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://procurax-mod8.onrender.com; frame-ancestors 'none'"
 
 [[headers]]
   for = "/assets/*"

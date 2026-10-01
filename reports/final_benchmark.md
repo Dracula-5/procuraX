@@ -28,7 +28,7 @@
 
 | Category | Configuration | Metrics | Result |
 |---|---|---|---|
-| API performance | Endpoint mix, concurrency, duration, hardware to be recorded | Throughput, p50/p95/p99, error rate | Not run |
+| API performance | Live free tier (Render Free, Oregon; Neon Free), public endpoints `/ready` + `/meta`, 30 s per run, from the developer workstation | Throughput, p50/p95, error rate | Concurrency 1: 30 requests, 1.0 req/s, p50 638 ms, p95 1722 ms, 100% HTTP 200. Concurrency 5: 148 requests, 4.79 req/s, p50 1434 ms, p95 1799 ms, 100% HTTP 200. Cold start 31 s. `/health` baseline TTFB median 478 ms, so most latency is network round trip plus TLS per request, not server work. See [live_deployment_smoke.json](live_deployment_smoke.json). Not a capacity estimate. |
 | Database performance | Dataset size, indexes, connection pool to be recorded | Query latency, throughput, locks, pool saturation | Not run |
 | Load testing | Local `/health`, 5 workers, 2 seconds, Windows/Python 3.12.7 | 612 responses; 304.63 req/s; p50 13.05 ms, p95 31.83 ms, p99 37.04 ms; 100% HTTP 200 | Health-only smoke. Authenticated product/API/database workload not run. |
 | Workflow performance | Controlled sample and task timing to be recorded | Request decision time, invoice handling time, exception rate | Not run |
