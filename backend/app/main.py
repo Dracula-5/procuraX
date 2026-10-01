@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -82,6 +83,10 @@ def create_app() -> FastAPI:
             "demo_mode": current.demo_mode,
             "public_demo": current.public_demo,
             "registration_enabled": current.allows_registration,
+            # Deployed revision (Render sets RENDER_GIT_COMMIT) and the browser origins CORS allows,
+            # so a deployment can be checked from outside. Neither is secret.
+            "commit": os.environ.get("RENDER_GIT_COMMIT", "")[:7] or None,
+            "allowed_origins": current.cors_origins,
         }
 
     @app.get("/ready", tags=["ops"], include_in_schema=False)

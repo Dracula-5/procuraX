@@ -29,6 +29,7 @@ from app.modules.identity.models import Organization, User, UserRole
 from app.modules.organization.models import Budget, CostCenter, Department
 from app.modules.procurement import policy_service
 from app.modules.procurement import service as pr_service
+from app.modules.procurement.knowledge_models import ProcurementKnowledgeDocument
 from app.modules.procurement.schemas import PRCreate, PRItemIn
 from app.modules.procurement.service import _local_today
 from app.modules.vendors.models import Vendor
@@ -76,6 +77,20 @@ PEOPLE = [
     ("fin_manager", "Hina Yoshida", "Finance Manager", "FIN", [Role.FINANCE_MANAGER, Role.EMPLOYEE], None),
     ("analyst", "Takumi Matsumoto", "Business Analyst (read-only)", "ADM", [Role.READ_ONLY_ANALYST], None),
 ]
+DEMO_GUIDELINE = """\
+第1条（見積の取得）100万円以上の購入は、原則として2社以上から見積を取得し、比較結果を購買依頼に添付する。
+第2条（適格請求書）請求書には適格請求書発行事業者の登録番号（T＋13桁）、税率ごとの対価の額と消費税額の記載が必要である。
+登録番号のない請求書は経理部が例外として審査する。
+第3条（検収）物品は受領後5営業日以内に検収を記録する。破損品は検収数量に含めない。
+第4条（支払）支払は月末締め翌月末払いとし、全銀フォーマットの振込データで行う。
+Article 1 (Quotes): purchases of JPY 1,000,000 or more need quotes from at least two suppliers,
+with the comparison attached to the purchase request.
+Article 2 (Qualified invoices): invoices must show the supplier's registration number (T + 13 digits)
+and the amount and consumption tax per tax rate; invoices without it are reviewed by finance as exceptions.
+Article 3 (Receiving): record receipt within five business days; damaged items are not accepted quantity.
+Article 4 (Payment): month-end close, paid at the end of the following month by Zengin transfer file.
+"""
+
 DEPARTMENT_HEADS = {"IT": "it_head", "OPS": "ops_head", "MKT": "mkt_manager", "FIN": "fin_manager"}
 
 # name, categories, status, risk, contract
@@ -255,6 +270,19 @@ async def _seed(session: AsyncSession) -> uuid.UUID:
             },
         )
         session.add(vendors[name.split(" ")[0]])
+    # A short internal guideline in Japanese and English, so the assistant's cited search can be
+    # tried in either language. Written for this fictional company; not an official document.
+    session.add(
+        ProcurementKnowledgeDocument(
+            org_id=org_id,
+            title="購買管理規程（抜粋） / Purchasing guideline (excerpt)",
+            source_reference="Fictional internal guideline of the demo company",
+            content=DEMO_GUIDELINE,
+            version=1,
+            is_active=True,
+            created_by_id=users["admin"].id,
+        )
+    )
     await session.commit()
 
     p = {key: _principal(users[key], roles_by_key[key]) for key in users}
