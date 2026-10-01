@@ -104,6 +104,12 @@ and the SLA sweep runs hourly, even while the API sleeps.
 
 ## 6. Check it
 
+From `backend/`: `uv run python scripts/live_check.py --api <render-url> --web <netlify-url>` runs 13
+end-to-end checks against the live deployment (CORS, persona sign-in, a purchase request through
+policy and approval, analytics, RBAC, assistant, registration lock) and exits non-zero on any failure.
+`/api/v1/meta` shows the deployed commit and the CORS origins in effect.
+
+
 - `https://<render-api>/ready` returns `{"status":"ready","database":"ok"}`.
 - `https://<render-api>/api/v1/meta` returns `"public_demo": true` and `"registration_enabled": false`.
 - Open the Netlify URL. The first load after a quiet period shows "Waking up the free-tier API" for up
