@@ -1,0 +1,32 @@
+# Netlify (free) hosts the React SPA; the API runs on Render. See docs/deployment.md.
+# Set VITE_API_BASE_URL in Netlify → Site configuration → Environment variables to the Render API
+# URL + /api/v1 (e.g. https://procurax.onrender.com/api/v1). It is compiled into the bundle, so
+# trigger a new deploy after changing it.
+
+[build]
+  base = "frontend"          # all paths below are relative to this directory
+  command = "npm run build"  # Netlify installs dependencies from package-lock.json first
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Client-side routes (/app, /purchase-to-pay, ...) all serve the SPA shell.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    # The API is on Render (*.onrender.com); add your own API domain here if you use one.
+    Content-Security-Policy = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.onrender.com; frame-ancestors 'none'"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

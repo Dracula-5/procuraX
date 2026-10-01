@@ -1,4 +1,4 @@
-# Free-tier deployment blueprint (Render free web service + free static site; database on Neon free).
+# Free-tier API blueprint (Render free web service). Database: Neon free. Web app: Netlify (netlify.toml).
 # Step-by-step guide: docs/deployment.md. Values marked `sync: false` are entered in the Render
 # dashboard when the blueprint is created, because they depend on your Neon database and on the
 # exact *.onrender.com hostnames Render assigns.
@@ -27,7 +27,7 @@ services:
         generateValue: true
       - key: PROCURAX_DATABASE_URL  # runtime role procurax_app; Neon's connection string can be pasted as-is
         sync: false
-      - key: PROCURAX_PUBLIC_APP_URL  # e.g. https://procurax-web.onrender.com (also the allowed CORS origin)
+      - key: PROCURAX_PUBLIC_APP_URL  # the Netlify site URL, e.g. https://procurax.netlify.app (also the CORS origin)
         sync: false
       - key: PROCURAX_SLA_ESCALATION_INTERVAL_SECONDS
         value: "900"
@@ -37,32 +37,3 @@ services:
         value: "3"
       - key: PROCURAX_DB_MAX_OVERFLOW
         value: "2"
-
-  - type: web
-    name: procurax-web
-    runtime: static
-    buildCommand: cd frontend && npm ci && npm run build
-    staticPublishPath: ./frontend/dist
-    autoDeployTrigger: "off"
-    envVars:
-      - key: VITE_API_BASE_URL  # e.g. https://procurax-api.onrender.com/api/v1
-        sync: false
-      - key: NODE_VERSION  # Vite 8 needs Node 20.19+; matches CI
-        value: "22"
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    headers:
-      - path: /*
-        name: X-Frame-Options
-        value: DENY
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
-      - path: /*
-        name: Referrer-Policy
-        value: strict-origin-when-cross-origin
-      - path: /assets/*
-        name: Cache-Control
-        value: public, max-age=31536000, immutable

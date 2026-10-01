@@ -21,7 +21,7 @@ Tesseract OCR runs end to end with a synthetic rendered-invoice benchmark; P9/P1
 offline synthetic baselines. Synthetic metrics are smoke checks, not product performance
 claims. Approved payments export as a Zengin (全銀) bank transfer file; ProcuraX never moves
 money itself. The assistant retrieves Japanese text, measured on the National Tax Agency's own
-invoice-system Q&A. A free, no-card deployment (Render + Neon + GitHub Actions) is scripted and
+invoice-system Q&A. A free, no-card deployment (Render API + Netlify web + Neon + GitHub Actions) is scripted and
 was rehearsed locally against a Neon-like database. Hosting it needs the owner's free accounts.
 No pilot has been run; [illustrative personas](docs/user_personas.md) show the intended users.
 See the [roadmap](docs/transformation_roadmap.md).
@@ -135,7 +135,7 @@ labelled as such. The parameterized formulas and input rules are in [business_ca
 ## Live demo
 
 Not publicly hosted yet. A free deployment needs no credit card: follow
-[docs/deployment.md](docs/deployment.md) (Neon + Render + GitHub Actions, about 20 minutes). The production-shaped
+[docs/deployment.md](docs/deployment.md) (Neon + Render + Netlify + GitHub Actions, about 20 minutes). The production-shaped
 container stack runs locally with `docker compose -f docker-compose.stack.yml up -d --build`
 (see the file header). In development, the demo tenant
 *ProcuraX Demo Manufacturing K.K. (fictional)* has 12 personas you can sign in as with one

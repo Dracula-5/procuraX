@@ -1,11 +1,11 @@
-# Release on the free tier: migrate the Neon database as the owner role, then trigger Render.
+# Release on the free tier: migrate the Neon database as the owner role, then trigger the Render API deploy.
 # Runs after CI passes on main (or manually). Until the secrets below exist it does nothing.
 #
 # Repository secrets (Settings → Secrets and variables → Actions):
 #   NEON_OWNER_DATABASE_URL   Neon connection string for the owner role (paste as shown by Neon)
 #   NEON_APP_DATABASE_URL     Neon connection string for the procurax_app runtime role
 #   RENDER_API_DEPLOY_HOOK    Render → procurax-api → Settings → Deploy Hook
-#   RENDER_WEB_DEPLOY_HOOK    Render → procurax-web → Settings → Deploy Hook
+#   RENDER_WEB_DEPLOY_HOOK    optional; only if the web app is a Render static site (Netlify rebuilds on push)
 name: Deploy
 
 on:
