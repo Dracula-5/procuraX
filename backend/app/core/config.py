@@ -7,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Rejected at startup when PROCURAX_ENV=prod (see _prod_guards).
 _DEV_JWT_SECRET = "dev-only-insecure-secret-change-me-0123456789"  # noqa: S105
+# Secret for encrypting values stored in the database; rejected in prod when webhooks are on.
+_DEV_DATA_KEY = "dev-only-data-encryption-secret-change-me-0123"  # noqa: S105
 
 
 def normalize_database_url(url: str) -> str:
@@ -72,6 +74,38 @@ class Settings(BaseSettings):
     login_max_failures: int = Field(default=5, ge=1)
     login_lockout_seconds: int = Field(default=900, ge=1)
 
+    # --- Notifications (transactional outbox + worker). External channels are off by default. ---
+    # Outbox worker inside the API process (seconds; 0 = off, run `python -m app.worker` instead).
+    # Several API replicas and workers may run at once: rows are claimed with FOR UPDATE SKIP LOCKED.
+    notification_worker_interval_seconds: int = Field(default=0, ge=0)
+    notification_batch_size: int = Field(default=50, ge=1, le=1000)
+    # Failed deliveries are retried with exponential backoff, then dead-lettered for review.
+    notification_max_attempts: int = Field(default=6, ge=1, le=50)
+    email_enabled: bool = False
+    smtp_host: str = "127.0.0.1"
+    smtp_port: int = 1025  # Mailpit (docker-compose) in development
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_starttls: bool = False
+    smtp_timeout_seconds: float = Field(default=10, gt=0)
+    email_from: str = "ProcuraX <no-reply@procurax.local>"
+    # Slack / Microsoft Teams incoming webhooks configured per tenant.
+    webhooks_enabled: bool = False
+    # Hosts a tenant may point a webhook at: exact host, or ".suffix" for subdomains (blocks SSRF).
+    webhook_allowed_hosts: list[str] = Field(
+        default_factory=lambda: [
+            "hooks.slack.com",
+            ".webhook.office.com",
+            ".logic.azure.com",
+            ".environment.api.powerplatform.com",
+        ]
+    )
+    webhook_timeout_seconds: float = Field(default=10, gt=0)
+    # Encrypts secrets kept in the database (tenant webhook URLs): any random string of 32+
+    # characters (a Fernet key is derived from it). Comma-separated secrets rotate: the first
+    # encrypts, all decrypt. Generate with: python -c "import secrets;print(secrets.token_urlsafe(48))"
+    data_encryption_key: str = _DEV_DATA_KEY
+
     tesseract_path: str | None = None
     pdftoppm_path: str | None = None
     # Directory containing *.traineddata (sets TESSDATA_PREFIX for the OCR subprocess).
@@ -96,6 +130,8 @@ class Settings(BaseSettings):
             self.cors_origins = [self.public_app_url.rstrip("/")]
         if len(self.jwt_secret) < 32:
             raise ValueError("PROCURAX_JWT_SECRET must be at least 32 characters")
+        if any(len(k.strip()) < 32 for k in self.data_encryption_key.split(",")):
+            raise ValueError("PROCURAX_DATA_ENCRYPTION_KEY must be 32+ characters (each, if several)")
         if self.env != "prod":
             return self
         # Report every missing or unsafe production setting at once, so a deployment is fixed in
@@ -103,6 +139,11 @@ class Settings(BaseSettings):
         problems = []
         if self.jwt_secret == _DEV_JWT_SECRET:
             problems.append("PROCURAX_JWT_SECRET must be set in production (32+ random characters)")
+        if self.webhooks_enabled and _DEV_DATA_KEY in self.data_encryption_key.split(","):
+            problems.append(
+                "PROCURAX_DATA_ENCRYPTION_KEY must be set in production when webhooks are enabled "
+                "(32+ random characters)"
+            )
         if "database_url" not in self.model_fields_set:
             problems.append(
                 "PROCURAX_DATABASE_URL must be set in production (runtime role connection string)"
