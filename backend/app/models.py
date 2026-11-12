@@ -1,5 +1,6 @@
 """Imports every ORM model so metadata is complete (Alembic autogenerate, tests)."""
 
+from app.integrations.models import QualifiedInvoiceRegistryEntry
 from app.modules.audit.models import AuditLog
 from app.modules.documents.models import InvoiceDocument
 from app.modules.identity.models import (
@@ -88,6 +89,7 @@ __all__ = [
     "Organization",
     "PermissionDef",
     "PurchaseRequest",
+    "QualifiedInvoiceRegistryEntry",
     "PurchaseRequestItem",
     "PurchaseOrder",
     "PurchaseOrderItem",

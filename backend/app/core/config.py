@@ -130,6 +130,15 @@ class Settings(BaseSettings):
     # When scanning is off, may invoices with not_scanned files be paid? (Infected/pending never.)
     allow_unscanned_documents: bool = False
 
+    # --- NTA qualified-invoice issuer registry (適格請求書発行事業者公表システム Web-API) ---------
+    # Needs an application ID issued by the National Tax Agency. Off: invoices are checked with the
+    # registration number's check digit and the vendor master only (the previous behaviour).
+    nta_registry_enabled: bool = False
+    nta_application_id: str | None = None
+    nta_api_base_url: str = "https://web-api.invoice-kohyo.nta.go.jp/1"
+    nta_cache_hours: int = Field(default=24, ge=1, le=720)
+    nta_timeout_seconds: float = Field(default=5, gt=0, le=30)
+
     tesseract_path: str | None = None
     pdftoppm_path: str | None = None
     # Directory containing *.traineddata (sets TESSDATA_PREFIX for the OCR subprocess).
@@ -176,6 +185,8 @@ class Settings(BaseSettings):
             problems.append("PROCURAX_DEMO_MODE must be false in production unless PROCURAX_PUBLIC_DEMO=true")
         if self.db_echo:
             problems.append("PROCURAX_DB_ECHO must be false in production")
+        if self.nta_registry_enabled and not self.nta_application_id:
+            problems.append("PROCURAX_NTA_APPLICATION_ID is required when PROCURAX_NTA_REGISTRY_ENABLED=true")
         if not self.public_app_url.startswith("https://"):
             source = (
                 "not set" if "public_app_url" not in self.model_fields_set else f"got {self.public_app_url!r}"
