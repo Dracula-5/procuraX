@@ -24,6 +24,7 @@ import { useAuth } from "../auth/useAuth";
 import { useLabels } from "../lib/labels";
 import { DeploymentNotice } from "./DeploymentNotice";
 import { LanguageSwitcher } from "./LanguageSwitcher";
+import { NotificationBell } from "./NotificationBell";
 import { Badge, Spinner } from "./ui";
 
 interface NavItem {
@@ -149,7 +150,10 @@ export function Layout() {
           <span className="ml-auto hidden text-xs text-muted sm:inline">
             {t("layout.fyInfo", { month: me.organization.fiscal_year_start_month, currency: me.organization.base_currency })}
           </span>
-          <LanguageSwitcher className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted sm:ml-0" />
+          <div className="ml-auto flex items-center gap-2 sm:ml-0">
+            <NotificationBell />
+            <LanguageSwitcher />
+          </div>
         </header>
         <DeploymentNotice />
         <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8">

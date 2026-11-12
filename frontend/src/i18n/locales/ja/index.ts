@@ -3,6 +3,7 @@ import { assistant, budgets, knowledge } from "./assistantBudgets";
 import { app, audit, auth, badges, bank, common, dashboard, delegations, errors, landing, layout, nav, notice, paymentSettings, policy, structure, users } from "./core";
 import { inbox, vendors } from "./inboxVendors";
 import { labels } from "./labels";
+import { notifications } from "./notifications";
 import { p2p } from "./p2p";
 import { policyPanel, requestDetail } from "./requestDetail";
 import { requestForm, requests } from "./requests";
@@ -37,6 +38,7 @@ export const ja: Messages = {
   paymentSettings,
   errors,
   labels,
+  notifications,
 };
 
 

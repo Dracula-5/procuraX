@@ -16,6 +16,7 @@ const Budgets = lazy(() => import("./pages/Budgets").then((m) => ({ default: m.B
 const Dashboard = lazy(() => import("./pages/Dashboard").then((m) => ({ default: m.Dashboard })));
 const Delegations = lazy(() => import("./pages/Delegations").then((m) => ({ default: m.Delegations })));
 const Inbox = lazy(() => import("./pages/Inbox").then((m) => ({ default: m.Inbox })));
+const Notifications = lazy(() => import("./pages/Notifications").then((m) => ({ default: m.Notifications })));
 const PaymentSettings = lazy(() => import("./pages/PaymentSettings").then((m) => ({ default: m.PaymentSettings })));
 const Policy = lazy(() => import("./pages/Policy").then((m) => ({ default: m.Policy })));
 const PurchaseToPay = lazy(() => import("./pages/PurchaseToPay").then((m) => ({ default: m.PurchaseToPay })));
@@ -71,6 +72,7 @@ export default function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="requests" element={<Requests />} />
+        <Route path="notifications" element={<Notifications />} />
         <Route path="requests/new" element={<RequestForm />} />
         <Route path="requests/:id" element={<RequestDetail />} />
         <Route path="requests/:id/edit" element={<RequestForm />} />

@@ -35,7 +35,7 @@ describe("translations", () => {
     const empty = [...jaLeaves].filter(([, text]) => !text.trim()).map(([key]) => key);
     expect(empty).toEqual([]);
     // Japanese strings should contain Japanese script, apart from codes, formats and proper nouns.
-    const allowedLatin = new Set(["requestDetail.policyEngine", "common.range", "p2p.quotes.scoreOf", "knowledge.sourcePlaceholder", "knowledge.placeholder"]);
+    const allowedLatin = new Set(["requestDetail.policyEngine", "common.range", "p2p.quotes.scoreOf", "knowledge.sourcePlaceholder", "knowledge.placeholder", "notifications.channels.slack", "notifications.channels.teams"]);
     const latinOnly = [...jaLeaves]
       .filter(([key, text]) => !/[぀-ヿ㐀-鿿]/.test(text) && !allowedLatin.has(key))
       .filter(([, text]) => /[A-Za-z]{4,}/.test(text.replace(/\{\{\w+\}\}/g, "")));
