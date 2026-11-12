@@ -23,6 +23,8 @@ deploy and maintenance workflows log "not configured" and do nothing.
 
 1. neon.tech → **New project** → PostgreSQL **16**. Pick the region nearest your Render service: for
    Render **Oregon (US West)** choose **AWS US West 2 (Oregon)**; for Render Singapore choose AWS Singapore.
+   The live demo runs in Oregon (`render.yaml` says `region: oregon`). Render fixes a region when the
+   service is created, so moving closer to Japan means creating a new Singapore service and database.
 2. **SQL Editor**: create the least-privilege runtime role, with your own strong password.
 
    ```sql

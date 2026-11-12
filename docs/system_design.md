@@ -58,7 +58,7 @@ flowchart TB
       PROC --> PE & SM
       Modules --> AUD
     end
-    API -->|asyncpg · runtime role procurax_app<br/>RLS enforced| PG[(PostgreSQL 16<br/>+ pgvector image)]
+    API -->|asyncpg · runtime role procurax_app<br/>RLS enforced| PG[(PostgreSQL 16<br/>pgvector image; extension not enabled)]
     Migr[Alembic · owner role] -.release step.-> PG
     subgraph Planned[Planned]
       Q[Redis + worker queue · P5/P6]
@@ -181,8 +181,10 @@ No AI result is connected to automatic approval or payment.
   basis for acceptance and override metrics and for drift detection.
 - AI outputs enter the workflow only as **recommendations or signals**. The policy engine and
   match rules decide, and people approve (see product spec §5).
-- Retrieval uses pgvector in the same PostgreSQL, under the same RLS, so tenant-aware retrieval
-  is structural and not a filter someone could forget (ADR-002).
+- *(Planned, gap-closure Phase 8.)* Semantic retrieval will use pgvector in the same PostgreSQL,
+  under the same RLS, so tenant-aware retrieval is structural and not a filter someone could
+  forget (ADR-002). Today the database runs the `pgvector/pgvector:pg16` **image only**: no
+  migration creates the extension, no table has a vector column, and retrieval is BM25.
 - The analytics assistant will generate SQL only against **read-only, RLS-bound views**,
   validate it with a parser allow-list, and run it as a read-only role with a statement
   timeout.
@@ -293,7 +295,7 @@ are cited with their date. No numbers until then.
 
 | Question | Choice | Why |
 |---|---|---|
-| Why PostgreSQL? | PostgreSQL 16 | Relational integrity for a financial workflow (FKs, CHECKs, transactions, row locks); RLS for tenant isolation; JSONB for policy snapshots; pgvector for RAG in the same security boundary; mature managed offerings |
+| Why PostgreSQL? | PostgreSQL 16 | Relational integrity for a financial workflow (FKs, CHECKs, transactions, row locks); RLS for tenant isolation; JSONB for policy snapshots; pgvector available for RAG in the same security boundary (image only today; embeddings planned in Phase 8); mature managed offerings |
 | Why FastAPI? | FastAPI + Pydantic v2 + SQLAlchemy 2 async | Typed request/response contracts, generated OpenAPI, async I/O suits DB-bound work now and LLM calls later; the Python ecosystem matches the ML stack |
 | Why Redis / an event queue? | **Not yet.** SLA escalation runs as a schedulable DB command; queue-backed notifications and OCR remain future work. | Current timed work is bounded and idempotent. Add a durable queue when external notification delivery, OCR volume or model jobs need retries and dead-letter handling. |
 | Why a deterministic policy engine? | Pure Python rules, versioned config | Compliance controls must be reproducible, testable and explainable to auditors; an LLM is none of those |
@@ -310,7 +312,9 @@ domain layer. *Consequences:* simple deploys and ACID workflows. Extraction cand
 
 **ADR-002 PostgreSQL as the single datastore, pgvector for vectors.** *Decision:* avoid a
 separate vector DB. *Consequences:* one backup and security model, and RLS covers embeddings.
-If vector scale outgrows it, revisit with measurements.
+If vector scale outgrows it, revisit with measurements. *Status:* decided, not yet exercised. The
+local, CI and stack databases use the pgvector image, but the extension is not created and no
+embeddings exist until Phase 8.
 
 **ADR-003 Async FastAPI + SQLAlchemy 2.** *Consequences:* high I/O concurrency. Lazy loading is
 disallowed in async, so loads are explicit (`selectin` or column queries), and timestamps are
