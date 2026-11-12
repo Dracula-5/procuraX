@@ -106,6 +106,30 @@ class Settings(BaseSettings):
     # encrypts, all decrypt. Generate with: python -c "import secrets;print(secrets.token_urlsafe(48))"
     data_encryption_key: str = _DEV_DATA_KEY
 
+    # --- Invoice files ----------------------------------------------------------------------------
+    # "local" keeps files on disk (development; a container's disk is not durable), "s3" uses any
+    # S3-compatible store: MinIO locally and in CI, AWS S3 or Cloudflare R2 in production.
+    storage_backend: Literal["local", "s3"] = "local"
+    storage_local_dir: str = "var/documents"
+    s3_endpoint_url: str | None = None  # e.g. http://127.0.0.1:9000 for MinIO; None = AWS
+    s3_bucket: str = "procurax-documents"
+    s3_region: str = "us-east-1"
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
+    # Downloads redirect to a short-lived presigned URL (after the API's permission check).
+    s3_presign_downloads: bool = True
+    s3_presign_seconds: int = Field(default=60, ge=10, le=3600)
+    # Invoices must be kept 7 years under Japanese corporate tax law (longer with loss carry-forward);
+    # every stored file records its retain-until date. Nothing deletes files automatically.
+    document_retention_years: int = Field(default=7, ge=1, le=30)
+    # Optional ClamAV (clamd) scan run by the worker. Off: files are marked not_scanned.
+    clamav_enabled: bool = False
+    clamav_host: str = "127.0.0.1"
+    clamav_port: int = 3310
+    clamav_timeout_seconds: float = Field(default=30, gt=0)
+    # When scanning is off, may invoices with not_scanned files be paid? (Infected/pending never.)
+    allow_unscanned_documents: bool = False
+
     tesseract_path: str | None = None
     pdftoppm_path: str | None = None
     # Directory containing *.traineddata (sets TESSDATA_PREFIX for the OCR subprocess).

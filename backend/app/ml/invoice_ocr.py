@@ -8,8 +8,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-MAX_DOCUMENT_BYTES = 18 * 1024 * 1024
-MAX_PDF_PAGES = 10
+# One set of limits for OCR previews and stored invoice files.
+from app.domain.documents import MAX_DOCUMENT_BYTES, MAX_PDF_PAGES
+
 ALLOWED_SUFFIXES = {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 
 

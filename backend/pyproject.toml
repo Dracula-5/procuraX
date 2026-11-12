@@ -17,6 +17,8 @@ dependencies = [
     "tzdata>=2026.4",
     "cryptography>=50.0.2",
     "httpx>=0.28.1",
+    "boto3>=1.44.1",
+    "pypdf>=7.0.1",
 ]
 
 [dependency-groups]
@@ -28,6 +30,7 @@ dev = [
     "mypy>=1.13",
     "pillow>=12.3.0",
     "aiosmtpd>=1.4.6",
+    "boto3-stubs>=1.44.1",
 ]
 
 [tool.uv]
