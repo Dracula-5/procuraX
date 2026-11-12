@@ -9,9 +9,11 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import system_session, utcnow
+from app.domain.notifications import EventType
 from app.domain.workflow.purchase_request import ApprovalStepStatus
 from app.modules.audit import service as audit
 from app.modules.identity.models import User
+from app.modules.notifications import outbox
 from app.modules.organization.models import Department
 from app.modules.procurement.models import Approval, ApprovalPolicy, PurchaseRequest
 
@@ -121,6 +123,20 @@ async def run_sla_escalations(session: AsyncSession, *, now: datetime | None = N
                 "escalation_count": step.escalation_count,
             },
             meta={"purchase_request_id": str(request.id), "round": step.round, "sequence": step.sequence},
+        )
+        outbox.emit(
+            session,
+            org_id=step.org_id,
+            event_type=EventType.APPROVAL_ESCALATED,
+            aggregate_type="approval",
+            aggregate_id=step.id,
+            actor_user_id=None,
+            recipient_user_ids=[target.id],
+            link=f"/app/requests/{request.id}",
+            number=request.number,
+            title=request.title,
+            role=step.approver_role,
+            **outbox.money_facts(request.estimated_total, request.currency),
         )
         escalated += 1
     await session.commit()

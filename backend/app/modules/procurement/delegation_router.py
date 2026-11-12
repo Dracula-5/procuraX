@@ -22,10 +22,12 @@ from app.api.deps import DB, requires
 from app.core.db import utcnow
 from app.core.errors import BusinessRuleViolation, ConflictError, NotFoundError
 from app.core.principal import Principal
+from app.domain.notifications import EventType
 from app.domain.rbac import Permission
 from app.domain.workflow.purchase_request import PRStatus
 from app.modules.audit import service as audit
 from app.modules.identity.models import User, UserRole
+from app.modules.notifications import outbox
 from app.modules.procurement.delegations import ApprovalDelegation
 from app.modules.procurement.models import Approval, PurchaseRequest
 
@@ -213,6 +215,20 @@ async def delegate_approval(data: DelegationCreateIn, session: DB, principal: Ap
             "from_user_id": str(prior_assignee),
             "to_user_id": str(delegate.id),
         },
+    )
+    outbox.emit(
+        session,
+        org_id=principal.org_id,
+        event_type=EventType.APPROVAL_DELEGATED,
+        aggregate_type="approval",
+        aggregate_id=step.id,
+        actor_user_id=principal.user_id,
+        recipient_user_ids=[delegate.id],
+        link=f"/app/requests/{request.id}",
+        number=request.number,
+        title=request.title,
+        role=step.approver_role,
+        delegator=principal.full_name,
     )
     await session.commit()
     return {

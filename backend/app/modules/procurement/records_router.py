@@ -24,12 +24,14 @@ from app.domain.matching import (
     billed_quantities,
     match_invoice,
 )
-from app.domain.rbac import Permission
+from app.domain.notifications import EventType
+from app.domain.rbac import Permission, Role
 from app.domain.sourcing import METHOD as SOURCING_METHOD
 from app.domain.sourcing import WEIGHTS as SOURCING_WEIGHTS
 from app.domain.sourcing import QuoteCandidate, RankedQuote, rank_quotes
 from app.domain.workflow.purchase_request import PRStatus
 from app.modules.audit import service as audit
+from app.modules.notifications import outbox
 from app.modules.organization.models import Department
 from app.modules.procurement.models import PurchaseRequest
 from app.modules.procurement.records import (
@@ -806,6 +808,21 @@ async def submit_invoice(order_id: uuid.UUID, data: InvoiceIn, session: DB, prin
             "line_match_details": result.line_details,
         },
     )
+    if result.status not in PAYABLE_INVOICE_STATES:
+        outbox.emit(
+            session,
+            org_id=principal.org_id,
+            event_type=EventType.INVOICE_MISMATCH,
+            aggregate_type="invoice",
+            aggregate_id=invoice.id,
+            actor_user_id=principal.user_id,
+            recipient_roles=[Role.FINANCE_MANAGER.value],
+            link="/app/p2p",
+            invoice_number=invoice.invoice_number,
+            po_number=order.number,
+            match_status=result.status,
+            **outbox.money_facts(total, order.currency),
+        )
     await session.commit()
     return {
         "id": invoice.id,
@@ -876,6 +893,23 @@ async def transition_order(
         summary=f"{order.number}: {current} -> {target}",
         changes={"from": current, "to": target, "reason": data.reason},
     )
+    if target == "sent":
+        request = await session.get(PurchaseRequest, order.purchase_request_id)
+        if request is not None:
+            outbox.emit(
+                session,
+                org_id=principal.org_id,
+                event_type=EventType.PO_SENT,
+                aggregate_type="purchase_order",
+                aggregate_id=order.id,
+                actor_user_id=principal.user_id,
+                recipient_user_ids=[request.requester_id],
+                link=f"/app/requests/{request.id}",
+                po_number=order.number,
+                number=request.number,
+                title=request.title,
+                **outbox.money_facts(order.total, order.currency),
+            )
     await session.commit()
     return {"id": order.id, "number": order.number, "status": order.status}
 
@@ -989,6 +1023,18 @@ async def request_payment(invoice_id: uuid.UUID, session: DB, principal: Current
         entity_id=invoice.id,
         summary=f"Payment approval requested for invoice {invoice.invoice_number}",
         changes={"amount": invoice.total, "currency": invoice.currency},
+    )
+    outbox.emit(
+        session,
+        org_id=principal.org_id,
+        event_type=EventType.PAYMENT_AWAITING_APPROVAL,
+        aggregate_type="payment",
+        aggregate_id=payment.id,
+        actor_user_id=principal.user_id,
+        recipient_roles=[Role.FINANCE_MANAGER.value],
+        link="/app/p2p",
+        invoice_number=invoice.invoice_number,
+        **outbox.money_facts(invoice.total, invoice.currency),
     )
     await session.commit()
     return {
