@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import bind_tenant, get_db
-from app.core.errors import AuthenticationError
+from app.core.errors import AuthenticationError, PermissionDeniedError
 from app.core.principal import Principal
 from app.core.security import decode_access_token
 from app.domain.rbac import Permission, Role, permissions_for
@@ -53,6 +53,20 @@ def requires(*permissions: Permission):  # noqa: ANN201
 
     async def _guard(principal: CurrentUser) -> Principal:
         principal.require(*permissions)
+        return principal
+
+    return _guard
+
+
+def requires_any(*permissions: Permission):  # noqa: ANN201
+    """Endpoint guard satisfied by any one of the permissions (e.g. a screen shared by two roles)."""
+
+    async def _guard(principal: CurrentUser) -> Principal:
+        if not any(principal.has(p) for p in permissions):
+            raise PermissionDeniedError(
+                "You do not have permission to perform this action",
+                details={"any_of_permissions": [p.value for p in permissions]},
+            )
         return principal
 
     return _guard
