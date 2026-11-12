@@ -46,6 +46,8 @@ Use this as a discussion guide, not a script. The client case is fictional. Sepa
 
 **How handle retries/idempotency?** Persist a client or event idempotency key with a unique constraint, make handlers safe to replay, use bounded exponential backoff, and route permanent failures to an operator queue.
 
+**How is the Japanese UI built?** The API stays language-neutral (error codes and a `reason` code on business-rule refusals) and the SPA owns the wording through i18next. Keys are typed, so a missing translation fails the build. Rule explanations are rebuilt from each rule hit's structured evidence rather than translating stored English sentences, and dates, numbers and ¥ amounts use `Intl` with the ja-JP locale. The language follows the user across devices (`users.locale`). See ADR-012.
+
 ## AI
 
 **Why ML for vendor ranking? Why not an LLM?** Structured historical price, delivery, defects and contract outcomes are rankable numeric evidence. A ranking model can be evaluated against historical decisions and explained with features; an LLM should not be the source of policy decisions.

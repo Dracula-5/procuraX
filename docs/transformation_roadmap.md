@@ -37,7 +37,7 @@ training on e-mail threads and spreadsheets.
 | P2 | Authentication, RBAC, tenants | ✅ (SSO/MFA/refresh cookies deferred to P18) |
 | P3 | Database & APIs | ✅ |
 | P4 | Public deployment | 🟡 **Live on free tiers:** web https://procurax.netlify.app (Netlify), API https://procurax-mod8.onrender.com (Render Docker, prod settings, public-demo mode) with Neon PostgreSQL. CI builds the image; the Deploy workflow migrates as the owner role. Remaining: database migration and demo seed run once the GitHub database secrets are added |
-| P5 | Approval & policy engine: delegation, escalation job, notifications | 🟡 Delegation/revocation; SLA escalation scheduled in-process (advisory lock) or externally; external notifications remain |
+| P5 | Approval & policy engine: delegation, escalation job, notifications | 🟡 Delegation/revocation with its own screen; SLA escalation scheduled in-process (advisory lock) or externally; external notifications remain |
 | P6 | Quote capture/comparison, PO lifecycle, receipts + invoice capture | 🟡 Eligibility-aware weighted baseline; optional supplier line prices flow exactly into PO lines; line receipts and invoice lines; OCR runs end to end with a recorded synthetic benchmark |
 | P7 | 3-way matching, duplicate invoice rules, payment approval | 🟡 Cumulative line matching, tax and registration checks, exception decisions, close rules, payment approval and Zengin 総合振込 transfer-file export (row-locked, once per payment) delivered; ProcuraX never moves money |
 | P8 | Spend analytics & executive dashboard | 🟡 Live category/department/vendor and P2P aggregates; date, category, department and vendor filters; 12-month trend; mean/median/P90/max cycle times; CSV export and current-FY budget utilization by cost centre delivered. Savings opportunities and anomaly review remain |
@@ -64,7 +64,7 @@ The per-gap detail, including how each item was verified, is in [`reports/gap_cl
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Docs match the code (permission count, Render region, pgvector wording) + CI check on counts; data-safe 0007 downgrade; dependency audits clean | ✅ |
-| 1 | Delegation, vendor bank account and payment-settings screens; Japanese UI | ⬜ |
+| 1 | Delegation, vendor bank account and payment-settings screens; Japanese UI | ✅ (Japanese wording not yet reviewed by a native-speaking procurement user; server-generated free text stays English) |
 | 2 | Transactional outbox, PostgreSQL worker, in-app / e-mail / Slack / Teams notifications | ⬜ |
 | 3 | Invoice file storage (S3-compatible), documents table, optional ClamAV scan | ⬜ |
 | 4 | NTA registry lookup adapter; Peppol / JP PINT UBL import | ⬜ |

@@ -24,7 +24,9 @@ async def test_language_preference_is_saved_per_user(client: AsyncClient) -> Non
     other = await add_user(client, org, "colleague", ["employee"])
     assert (await client.get(f"{API}/auth/me", headers=other.headers)).json()["locale"] is None
 
-    cleared = await client.patch(f"{API}/auth/me/preferences", headers=org.admin.headers, json={"locale": None})
+    cleared = await client.patch(
+        f"{API}/auth/me/preferences", headers=org.admin.headers, json={"locale": None}
+    )
     assert cleared.json()["locale"] is None
 
 
@@ -141,7 +143,9 @@ async def test_delegation_list_shows_names_and_revocability(client: AsyncClient)
     after = (await client.get(f"{API}/approvals/delegations", headers=org["manager"].headers)).json()
     assert after[0]["revoked_at"] is not None
     assert after[0]["can_revoke"] is False
-    twice = await client.post(f"{API}/approvals/delegations/{row['id']}/revoke", headers=org["manager"].headers)
+    twice = await client.post(
+        f"{API}/approvals/delegations/{row['id']}/revoke", headers=org["manager"].headers
+    )
     assert twice.status_code == 409
     assert twice.json()["error"]["details"]["reason"] == "delegation_already_revoked"
 
@@ -149,7 +153,9 @@ async def test_delegation_list_shows_names_and_revocability(client: AsyncClient)
 async def test_delegation_screen_apis_are_tenant_scoped(client: AsyncClient) -> None:
     org, backup, _request, step = await _pending_manager_step(client)
     other = await build_org(client, name="Other Tenant K.K.")
-    r = await client.get(f"{API}/approvals/{step['id']}/delegate-candidates", headers=other["manager"].headers)
+    r = await client.get(
+        f"{API}/approvals/{step['id']}/delegate-candidates", headers=other["manager"].headers
+    )
     assert r.status_code == 404
     created = await client.post(
         f"{API}/approvals/delegations",
@@ -176,7 +182,10 @@ async def test_bank_account_errors_name_the_field_and_reason(client: AsyncClient
         json={**BANK, "holder_name_kana": "株式会社ミナト"},
     )
     assert kanji.status_code == 422
-    assert kanji.json()["error"]["details"] == {"reason": "zengin_invalid_characters", "field": "holder_name_kana"}
+    assert kanji.json()["error"]["details"] == {
+        "reason": "zengin_invalid_characters",
+        "field": "holder_name_kana",
+    }
 
     long_name = await client.put(
         f"{API}/vendors/{vendor['id']}/bank-account",
@@ -202,7 +211,10 @@ async def test_payer_settings_validate_the_consignor_at_save_time(client: AsyncC
     )
     # Previously accepted here and only rejected when the transfer file was built.
     assert too_long.status_code == 422
-    assert too_long.json()["error"]["details"] == {"reason": "zengin_too_long", "field": "consignor_name_kana"}
+    assert too_long.json()["error"]["details"] == {
+        "reason": "zengin_too_long",
+        "field": "consignor_name_kana",
+    }
 
     saved = await client.put(
         f"{API}/organizations/current/payment-settings", headers=org.admin.headers, json=PAYER
@@ -212,7 +224,9 @@ async def test_payer_settings_validate_the_consignor_at_save_time(client: AsyncC
 
 async def test_payer_settings_are_readable_by_admin_and_finance_only(client: AsyncClient) -> None:
     org = await build_org(client)
-    put = await client.put(f"{API}/organizations/current/payment-settings", headers=org.admin.headers, json=PAYER)
+    put = await client.put(
+        f"{API}/organizations/current/payment-settings", headers=org.admin.headers, json=PAYER
+    )
     assert put.status_code == 200
     for actor in ("admin", "finance"):
         r = await client.get(f"{API}/organizations/current/payment-settings", headers=org[actor].headers)

@@ -352,3 +352,15 @@ Pool steps require the role. This prevents stuck workflows while keeping pools p
 **ADR-011 App-side timestamps.** `created_at`/`updated_at` are set in Python so no implicit
 refresh (I/O) is needed under asyncio. The audit log adds an identity `seq` because timestamps
 can tie within one transaction.
+
+**ADR-012 The API returns codes; the SPA owns the wording (English and Japanese).** *Context:* the
+UI must work in Japanese, while the API's messages, rule sentences and audit summaries are English
+and are also stored (policy snapshots, audit rows). *Decision:* keep the API language-neutral: stable
+`error.code`, plus `error.details.reason` (and `field`) on business-rule refusals the UI must explain.
+The SPA uses i18next with keys typed against the English messages, so a missing Japanese key fails the
+build. In Japanese, rule messages are rebuilt from each hit's structured `evidence`, and audit entries
+are described by their `action` code; English keeps the server's exact sentence. The user's choice is
+stored in `users.locale` (NULL = follow the browser) and Japanese loads as a separate chunk.
+*Consequences:* every new refusal that users see needs a reason code and two translations; a Vitest
+test fails if the UI's rule labels differ from the generated rule catalogue. Stored English text (audit
+summaries, old policy snapshots) is never rewritten.

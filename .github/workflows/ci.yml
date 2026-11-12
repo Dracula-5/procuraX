@@ -82,6 +82,8 @@ jobs:
       - run: npm ci
       - run: npx oxlint src
       - run: npm run build
+      - name: Unit and component tests (Vitest + Testing Library)
+        run: npm test
       - run: npm audit --omit=dev --audit-level=high
 
   image:
