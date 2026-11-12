@@ -19,6 +19,7 @@ dependencies = [
     "httpx>=0.28.1",
     "boto3>=1.44.1",
     "pypdf>=7.0.1",
+    "defusedxml>=0.7.1",
 ]
 
 [dependency-groups]
@@ -31,6 +32,7 @@ dev = [
     "pillow>=12.3.0",
     "aiosmtpd>=1.4.6",
     "boto3-stubs>=1.44.1",
+    "types-defusedxml>=0.7.0.20260504",
 ]
 
 [tool.uv]

@@ -2504,6 +2504,55 @@
         }
       }
     },
+    "/api/v1/einvoices": {
+      "post": {
+        "tags": [
+          "purchase-to-pay"
+        ],
+        "summary": "Import Einvoice",
+        "description": "Import a Peppol / JP PINT UBL invoice and run the same three-way match as manual entry.",
+        "operationId": "import_einvoice_api_v1_einvoices_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EInvoiceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Import Einvoice Api V1 Einvoices Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/purchase-orders/{order_id}/transition": {
       "post": {
         "tags": [
@@ -6241,6 +6290,33 @@
           "content_base64"
         ],
         "title": "DocumentUploadIn"
+      },
+      "EInvoiceIn": {
+        "properties": {
+          "xml_base64": {
+            "type": "string",
+            "maxLength": 7200000,
+            "minLength": 4,
+            "title": "Xml Base64"
+          },
+          "purchase_order_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase Order Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "xml_base64"
+        ],
+        "title": "EInvoiceIn"
       },
       "Evidence": {
         "properties": {

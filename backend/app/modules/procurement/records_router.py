@@ -1,13 +1,17 @@
 """Purchase order, receipt, invoice and live spend endpoints."""
 
+import base64
+import binascii
+import hashlib
 import uuid
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, status
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import DB, CurrentUser, requires
 from app.core.config import get_settings
@@ -17,6 +21,7 @@ from app.core.principal import Principal
 from app.core.sequences import next_document_number
 from app.domain.catalog import SpendCategory
 from app.domain.documents import payment_block_reason
+from app.domain.einvoice import EInvoiceError, map_to_order_lines, parse_ubl_invoice
 from app.domain.matching import (
     PAYABLE_INVOICE_STATES,
     VOID_INVOICE_STATES,
@@ -32,6 +37,7 @@ from app.domain.sourcing import METHOD as SOURCING_METHOD
 from app.domain.sourcing import WEIGHTS as SOURCING_WEIGHTS
 from app.domain.sourcing import QuoteCandidate, RankedQuote, rank_quotes
 from app.domain.workflow.purchase_request import PRStatus
+from app.integrations import nta_registry
 from app.modules.audit import service as audit
 from app.modules.documents.models import InvoiceDocument
 from app.modules.notifications import outbox
@@ -697,6 +703,81 @@ def _order_lines(order: PurchaseOrder) -> list[OrderLine]:
 
 @router.post("/purchase-orders/{order_id}/invoices", status_code=status.HTTP_201_CREATED)
 async def submit_invoice(order_id: uuid.UUID, data: InvoiceIn, session: DB, principal: Procurement) -> dict:
+    return await _create_invoice(session, principal, order_id, data, source={"type": "manual"})
+
+
+class EInvoiceIn(BaseModel):
+    # UBL 2.1 Invoice XML (Peppol BIS Billing / JP PINT), base64-encoded.
+    xml_base64: str = Field(min_length=4, max_length=7_200_000)
+    # Optional: otherwise the order is found by the document's OrderReference (= PO number).
+    purchase_order_id: uuid.UUID | None = None
+
+
+@router.post("/einvoices", status_code=status.HTTP_201_CREATED)
+async def import_einvoice(data: EInvoiceIn, session: DB, principal: Procurement) -> dict:
+    """Import a Peppol / JP PINT UBL invoice and run the same three-way match as manual entry."""
+    try:
+        xml = base64.b64decode(data.xml_base64, validate=True)
+        parsed = parse_ubl_invoice(xml)
+    except (ValueError, binascii.Error) as exc:
+        reason = exc.reason if isinstance(exc, EInvoiceError) else "einvoice_encoding"
+        raise BusinessRuleViolation(str(exc), details={"reason": reason}) from exc
+    if data.purchase_order_id is not None:
+        order_id = data.purchase_order_id
+    else:
+        found = await session.scalar(
+            select(PurchaseOrder.id).where(
+                PurchaseOrder.org_id == principal.org_id,
+                PurchaseOrder.number == (parsed.order_reference or ""),
+            )
+        )
+        if found is None:
+            raise BusinessRuleViolation(
+                f"No purchase order matches the e-invoice order reference {parsed.order_reference!r}",
+                details={"reason": "einvoice_order_not_found"},
+            )
+        order_id = found
+    order = await _order(session, principal.org_id, order_id)
+    if parsed.currency != order.currency:
+        raise BusinessRuleViolation(
+            f"E-invoice currency {parsed.currency} differs from the order currency {order.currency}",
+            details={"reason": "einvoice_currency"},
+        )
+    try:
+        items = map_to_order_lines(parsed, {item.line_no: str(item.id) for item in order.items})
+        invoice_in = InvoiceIn(
+            invoice_number=parsed.invoice_number,
+            invoice_date=parsed.issue_date,
+            registration_number=parsed.supplier_registration,
+            tax=parsed.tax_amount,
+            items=[InvoiceLineIn.model_validate(item) for item in items],
+        )
+    except EInvoiceError as exc:
+        raise BusinessRuleViolation(str(exc), details={"reason": exc.reason}) from exc
+    except ValidationError as exc:
+        raise BusinessRuleViolation(
+            "The e-invoice values are not valid for an invoice", details={"reason": "einvoice_invalid_value"}
+        ) from exc
+    return await _create_invoice(
+        session,
+        principal,
+        order_id,
+        invoice_in,
+        source={
+            "type": "peppol_ubl",
+            "customization_id": parsed.customization_id,
+            "jp_pint": parsed.is_jp_pint,
+            "supplier_name": parsed.supplier_name,
+            "xml_sha256": hashlib.sha256(xml).hexdigest(),
+        },
+    )
+
+
+async def _create_invoice(
+    session: AsyncSession, principal: Principal, order_id: uuid.UUID, data: InvoiceIn, *, source: dict
+) -> dict:
+    # External lookup first, before any row lock is held (it can take up to the API timeout).
+    registry, registry_source = await nta_registry.lookup(session, data.registration_number)
     # The order row lock serialises invoices on one order, so two concurrent invoices cannot
     # both bill the same accepted quantity.
     order = await _order(session, principal.org_id, order_id, for_update=True)
@@ -758,6 +839,9 @@ async def submit_invoice(order_id: uuid.UUID, data: InvoiceIn, session: DB, prin
             currency=order.currency,
             stated_registration=data.registration_number,
             vendor_registration=vendor_registration,
+            invoice_date=data.invoice_date,
+            registry=registry,
+            registry_source=registry_source,
         )
     except InvalidInvoice as exc:
         raise BusinessRuleViolation(str(exc)) from exc
@@ -774,6 +858,7 @@ async def submit_invoice(order_id: uuid.UUID, data: InvoiceIn, session: DB, prin
         "tax_compared": result.tax["compared"],
         "tax": result.tax,
         "qualified_invoice": result.qualified_invoice,
+        "source": source,
         "exceptions": result.exceptions,
         "reason": "; ".join(result.exceptions)
         or "Prices, quantities not yet invoiced and any stated tax agree with the order and accepted receipts",
