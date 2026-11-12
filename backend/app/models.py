@@ -11,6 +11,13 @@ from app.modules.identity.models import (
     User,
     UserRole,
 )
+from app.modules.notifications.models import (
+    Notification,
+    NotificationChannel,
+    NotificationDelivery,
+    NotificationPreference,
+    OutboxEvent,
+)
 from app.modules.organization.models import Budget, CostCenter, Department
 from app.modules.procurement.delegations import ApprovalDelegation
 from app.modules.procurement.knowledge_models import ProcurementKnowledgeDocument
@@ -47,6 +54,11 @@ TENANT_TABLES = [
     "payments",
     "approval_delegations",
     "procurement_knowledge_documents",
+    "notification_outbox",
+    "notification_deliveries",
+    "notifications",
+    "notification_preferences",
+    "notification_channels",
     "audit_logs",
 ]
 
@@ -61,6 +73,11 @@ __all__ = [
     "CostCenter",
     "Department",
     "Invitation",
+    "Notification",
+    "NotificationChannel",
+    "NotificationDelivery",
+    "NotificationPreference",
+    "OutboxEvent",
     "GoodsReceipt",
     "Invoice",
     "Payment",

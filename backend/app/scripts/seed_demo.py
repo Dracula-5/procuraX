@@ -111,6 +111,11 @@ VENDORS = [
 
 _TEARDOWN_ORDER = [
     "audit_logs",
+    "notification_deliveries",
+    "notification_outbox",
+    "notifications",
+    "notification_preferences",
+    "notification_channels",
     "payments",
     "invoices",
     "goods_receipts",
