@@ -1,6 +1,7 @@
 """Imports every ORM model so metadata is complete (Alembic autogenerate, tests)."""
 
 from app.modules.audit.models import AuditLog
+from app.modules.documents.models import InvoiceDocument
 from app.modules.identity.models import (
     Invitation,
     Organization,
@@ -50,6 +51,7 @@ TENANT_TABLES = [
     "purchase_order_items",
     "goods_receipts",
     "invoices",
+    "invoice_documents",
     "vendor_quotes",
     "payments",
     "approval_delegations",
@@ -73,6 +75,7 @@ __all__ = [
     "CostCenter",
     "Department",
     "Invitation",
+    "InvoiceDocument",
     "Notification",
     "NotificationChannel",
     "NotificationDelivery",

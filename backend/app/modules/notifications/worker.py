@@ -371,25 +371,3 @@ async def process_once(
     finally:
         await session.close()
     return {**fanned, **delivered}
-
-
-async def worker_loop(interval_seconds: float, *, stop: asyncio.Event | None = None) -> None:
-    """Run until cancelled (or `stop` is set). Busy batches run back to back; idle ones wait."""
-    while stop is None or not stop.is_set():
-        try:
-            counts = await process_once()
-            busy = (
-                counts["events"]
-                + counts["sent"]
-                + counts["retried"]
-                + counts["dead"]
-                + counts["event_failures"]
-            )
-            if busy:
-                logger.info("notifications_processed", extra=counts)
-                continue
-        except asyncio.CancelledError:
-            raise
-        except Exception:  # A failed cycle must not stop the worker.
-            logger.exception("notifications_cycle_failed")
-        await asyncio.sleep(interval_seconds)

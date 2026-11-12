@@ -10,11 +10,13 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import and_, func, or_, select
 
 from app.api.deps import DB, CurrentUser, requires
+from app.core.config import get_settings
 from app.core.db import utcnow
 from app.core.errors import BusinessRuleViolation, ConflictError, NotFoundError
 from app.core.principal import Principal
 from app.core.sequences import next_document_number
 from app.domain.catalog import SpendCategory
+from app.domain.documents import payment_block_reason
 from app.domain.matching import (
     PAYABLE_INVOICE_STATES,
     VOID_INVOICE_STATES,
@@ -31,6 +33,7 @@ from app.domain.sourcing import WEIGHTS as SOURCING_WEIGHTS
 from app.domain.sourcing import QuoteCandidate, RankedQuote, rank_quotes
 from app.domain.workflow.purchase_request import PRStatus
 from app.modules.audit import service as audit
+from app.modules.documents.models import InvoiceDocument
 from app.modules.notifications import outbox
 from app.modules.organization.models import Department
 from app.modules.procurement.models import PurchaseRequest
@@ -989,6 +992,25 @@ async def decide_invoice_exception(
     }
 
 
+async def _check_invoice_files(session, org_id: uuid.UUID, invoice_id: uuid.UUID) -> None:  # noqa: ANN001
+    """Attached files must be scanned and clean (or explicitly allowed unscanned) before payment."""
+    statuses = list(
+        await session.scalars(
+            select(InvoiceDocument.scan_status).where(
+                InvoiceDocument.org_id == org_id, InvoiceDocument.invoice_id == invoice_id
+            )
+        )
+    )
+    reason = payment_block_reason(statuses, allow_unscanned=get_settings().allow_unscanned_documents)
+    if reason is not None:
+        messages = {
+            "document_infected": "An attached invoice file was flagged by the virus scanner",
+            "document_scan_pending": "An attached invoice file is still waiting for its virus scan",
+            "document_not_scanned": "An attached invoice file has not been virus-scanned",
+        }
+        raise BusinessRuleViolation(messages[reason], details={"reason": reason})
+
+
 @router.post("/invoices/{invoice_id}/payment-requests", status_code=status.HTTP_201_CREATED)
 async def request_payment(invoice_id: uuid.UUID, session: DB, principal: CurrentUser) -> dict:
     principal.require(Permission.PR_READ_ALL)
@@ -1005,6 +1027,7 @@ async def request_payment(invoice_id: uuid.UUID, session: DB, principal: Current
         select(Payment.id).where(Payment.org_id == principal.org_id, Payment.invoice_id == invoice.id)
     ):
         raise ConflictError("A payment request already exists for this invoice")
+    await _check_invoice_files(session, principal.org_id, invoice.id)
     payment = Payment(
         org_id=principal.org_id,
         invoice_id=invoice.id,
@@ -1092,6 +1115,8 @@ async def decide_payment(
         raise BusinessRuleViolation("The payment requester cannot approve their own payment")
     if data.decision not in {"approve", "reject"}:
         raise BusinessRuleViolation("Decision must be approve or reject")
+    if data.decision == "approve":  # a file attached after the request must also be clean
+        await _check_invoice_files(session, principal.org_id, payment.invoice_id)
     payment.status = "approved" if data.decision == "approve" else "rejected"
     payment.decided_by_id = principal.user_id
     payment.decided_at = utcnow()
