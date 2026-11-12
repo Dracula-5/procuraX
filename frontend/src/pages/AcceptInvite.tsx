@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { Button, ErrorNotice, Field, Input } from "../components/ui";
@@ -8,6 +9,7 @@ import type { TokenResponse } from "../lib/types";
 import { AuthShell } from "./Login";
 
 export function AcceptInvite() {
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const token = params.get("token") ?? "";
   const { signIn } = useAuth();
@@ -29,24 +31,23 @@ export function AcceptInvite() {
   };
 
   return (
-    <AuthShell title="Join your organisation" subtitle="Set your name and password to activate the invitation.">
+    <AuthShell title={t("auth.inviteTitle")} subtitle={t("auth.inviteSubtitle")}>
       {!token ? (
-        <ErrorNotice error={new Error("This link is missing its invitation token.")} />
+        <ErrorNotice error={new Error(t("auth.missingToken"))} />
       ) : (
         <form onSubmit={submit} className="space-y-4 rounded-lg border border-border bg-surface p-5">
-          <Field label="Your name" error={fieldErrors.full_name}>
+          <Field label={t("auth.yourName")} error={fieldErrors.full_name}>
             <Input required value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </Field>
-          <Field label="Password" error={fieldErrors.password} hint="At least 10 characters, including a letter and a digit.">
+          <Field label={t("auth.password")} error={fieldErrors.password} hint={t("auth.passwordHint")}>
             <Input required type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </Field>
           {!Object.keys(fieldErrors).length && <ErrorNotice error={accept.error} />}
           <Button type="submit" className="w-full" loading={accept.isPending}>
-            Activate account
+            {t("auth.activate")}
           </Button>
         </form>
       )}
     </AuthShell>
   );
 }
-

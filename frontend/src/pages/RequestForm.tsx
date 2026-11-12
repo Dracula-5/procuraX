@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { Button, Card, ErrorNotice, Field, Input, PageHeader, Select, Spinner, Textarea } from "../components/ui";
 import { api, ApiError } from "../lib/api";
-import { CATEGORIES, money } from "../lib/format";
+import { money } from "../lib/format";
+import { CATEGORY_KEYS, useLabels } from "../lib/labels";
 import type { CostCenter, Department, Page, PRDetail, Vendor } from "../lib/types";
 
 interface Line {
@@ -29,6 +31,7 @@ type FormState = {
 
 /** Loads the draft (when editing), then mounts the form with its initial values. */
 export function RequestForm() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const existing = useQuery({
     queryKey: ["request", id],
@@ -38,12 +41,14 @@ export function RequestForm() {
   if (id && existing.isLoading) return <Spinner />;
   if (id && !existing.data) return <ErrorNotice error={existing.error} />;
   if (existing.data && existing.data.status !== "draft") {
-    return <ErrorNotice error={new Error("Only draft requests can be edited. Reopen the request first.")} />;
+    return <ErrorNotice error={new Error(t("requestForm.onlyDrafts"))} />;
   }
   return <RequestFormBody key={id ?? "new"} existing={existing.data ?? null} />;
 }
 
 function RequestFormBody({ existing }: { existing: PRDetail | null }) {
+  const { t } = useTranslation();
+  const labels = useLabels();
   const editing = existing !== null;
   const id = existing?.id;
   const navigate = useNavigate();
@@ -118,33 +123,33 @@ function RequestFormBody({ existing }: { existing: PRDetail | null }) {
   return (
     <>
       <PageHeader
-        title={editing ? `Edit ${existing?.number}` : "New purchase request"}
-        subtitle="Saved as a draft. On submission the policy engine decides the approval route — you can preview it first."
+        title={editing ? t("requestForm.editTitle", { number: existing?.number }) : t("requestForm.newTitle")}
+        subtitle={t("requestForm.subtitle")}
       />
       <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
-          <Card title="What do you need?">
+          <Card title={t("requestForm.whatTitle")}>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <Field label="Title" error={fieldErrors.title}>
-                  <Input required minLength={3} value={form.title} onChange={set("title")} placeholder="e.g. Laptops for new joiners" />
+                <Field label={t("requestForm.title")} error={fieldErrors.title}>
+                  <Input required minLength={3} value={form.title} onChange={set("title")} placeholder={t("requestForm.titlePlaceholder")} />
                 </Field>
               </div>
-              <Field label="Category">
+              <Field label={t("common.category")}>
                 <Select value={form.category} onChange={set("category")}>
-                  {Object.entries(CATEGORIES).map(([k, v]) => (
+                  {CATEGORY_KEYS.map((k) => (
                     <option key={k} value={k}>
-                      {v}
+                      {labels.category(k)}
                     </option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Needed by">
+              <Field label={t("requestForm.neededBy")}>
                 <Input type="date" value={form.required_by} onChange={set("required_by")} />
               </Field>
-              <Field label="Cost centre" hint="The department that owns this cost centre approves and its budget is checked.">
+              <Field label={t("requestForm.costCentre")} hint={t("requestForm.costCentreHint")}>
                 <Select value={costCenterId} onChange={set("cost_center_id")}>
-                  <option value="">— Select —</option>
+                  <option value="">{t("common.selectPlaceholder")}</option>
                   {costCenters.data
                     ?.filter((c) => c.is_active)
                     .map((c) => (
@@ -154,12 +159,12 @@ function RequestFormBody({ existing }: { existing: PRDetail | null }) {
                     ))}
                 </Select>
               </Field>
-              <Field label="Preferred vendor" hint="Optional. Blocked vendors are rejected by policy.">
+              <Field label={t("requestForm.preferredVendor")} hint={t("requestForm.preferredVendorHint")}>
                 <Select value={form.preferred_vendor_id} onChange={set("preferred_vendor_id")}>
-                  <option value="">— None / let procurement source —</option>
+                  <option value="">{t("requestForm.noVendor")}</option>
                   {vendors.data?.items.map((v) => (
                     <option key={v.id} value={v.id}>
-                      {v.name} · {v.status.replace("_", " ")}
+                      {v.name} · {labels.vendorStatus(v.status)}
                     </option>
                   ))}
                 </Select>
@@ -168,21 +173,21 @@ function RequestFormBody({ existing }: { existing: PRDetail | null }) {
           </Card>
 
           <Card
-            title="Line items"
+            title={t("requestForm.lines")}
             actions={
               <Button type="button" variant="secondary" size="sm" onClick={() => setLines((l) => [...l, emptyLine()])} disabled={lines.length >= 100}>
-                <Plus className="size-4" /> Add line
+                <Plus className="size-4" /> {t("requestForm.addLine")}
               </Button>
             }
           >
             <div className="space-y-3">
               {lines.map((line, i) => (
                 <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_90px_140px_70px_36px]">
-                  <Input className="col-span-2 sm:col-span-1" placeholder="Description" value={line.description} onChange={(e) => setLine(i, "description", e.target.value)} aria-label={`Line ${i + 1} description`} />
-                  <Input type="number" min="0.001" step="any" value={line.quantity} onChange={(e) => setLine(i, "quantity", e.target.value)} aria-label="Quantity" />
-                  <Input type="number" min="0" step="any" placeholder={`Unit price (${currency})`} value={line.unit_price} onChange={(e) => setLine(i, "unit_price", e.target.value)} aria-label="Unit price" />
-                  <Input value={line.uom} onChange={(e) => setLine(i, "uom", e.target.value)} aria-label="Unit" />
-                  <Button type="button" variant="ghost" size="sm" className="h-10" onClick={() => setLines((ls) => (ls.length > 1 ? ls.filter((_, j) => j !== i) : [emptyLine()]))} aria-label="Remove line">
+                  <Input className="col-span-2 sm:col-span-1" placeholder={t("requestForm.description")} value={line.description} onChange={(e) => setLine(i, "description", e.target.value)} aria-label={t("requestForm.lineDescription", { n: i + 1 })} />
+                  <Input type="number" min="0.001" step="any" value={line.quantity} onChange={(e) => setLine(i, "quantity", e.target.value)} aria-label={t("common.quantity")} />
+                  <Input type="number" min="0" step="any" placeholder={t("requestForm.unitPriceIn", { currency })} value={line.unit_price} onChange={(e) => setLine(i, "unit_price", e.target.value)} aria-label={t("common.unitPrice")} />
+                  <Input value={line.uom} onChange={(e) => setLine(i, "uom", e.target.value)} aria-label={t("requestForm.unit")} />
+                  <Button type="button" variant="ghost" size="sm" className="h-10" onClick={() => setLines((ls) => (ls.length > 1 ? ls.filter((_, j) => j !== i) : [emptyLine()]))} aria-label={t("requestForm.removeLine")}>
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
@@ -190,44 +195,43 @@ function RequestFormBody({ existing }: { existing: PRDetail | null }) {
             </div>
           </Card>
 
-          <Card title="Business justification">
-            <Field label="Why is this purchase needed?" error={fieldErrors.justification}>
+          <Card title={t("requestForm.justificationTitle")}>
+            <Field label={t("requestForm.justification")} error={fieldErrors.justification}>
               <Textarea value={form.justification} onChange={set("justification")} />
             </Field>
             <label className="mt-4 flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-0.5 size-4 accent-[var(--primary)]" checked={form.is_emergency} onChange={set("is_emergency")} />
               <span>
-                <span className="font-medium">Emergency purchase</span>
-                <span className="block text-muted">Skips line-manager approval, goes to the department head, and is reviewed retrospectively. Requires a written justification.</span>
+                <span className="font-medium">{t("requestForm.emergency")}</span>
+                <span className="block text-muted">{t("requestForm.emergencyHint")}</span>
               </span>
             </label>
           </Card>
         </div>
 
         <div className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-          <Card title="Summary">
+          <Card title={t("requestForm.summary")}>
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <dt className="text-muted">Lines</dt>
+                <dt className="text-muted">{t("requestForm.lineCount")}</dt>
                 <dd>{lines.filter((l) => l.description.trim()).length}</dd>
               </div>
               <div className="flex justify-between text-base font-semibold">
-                <dt>Estimated total</dt>
+                <dt>{t("requestForm.estimatedTotal")}</dt>
                 <dd className="tabular">{money(total, currency)}</dd>
               </div>
             </dl>
-            <p className="mt-3 text-xs text-muted">Final amounts are rounded to {currency} minor units by the server.</p>
+            <p className="mt-3 text-xs text-muted">{t("requestForm.rounding", { currency })}</p>
           </Card>
           {!Object.keys(fieldErrors).length && <ErrorNotice error={save.error} />}
           <Button type="submit" className="w-full" loading={save.isPending}>
-            {editing ? "Save changes" : "Save draft"}
+            {editing ? t("common.saveChanges") : t("requestForm.saveDraft")}
           </Button>
           <Button type="button" variant="ghost" className="w-full" onClick={() => navigate(-1)}>
-            Cancel
+            {t("common.cancel")}
           </Button>
         </div>
       </form>
     </>
   );
 }
-

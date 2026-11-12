@@ -1,15 +1,16 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { Button, ErrorNotice, Field, Input, Select } from "../components/ui";
 import { api, ApiError } from "../lib/api";
+import { monthNames } from "../lib/format";
 import type { TokenResponse } from "../lib/types";
 import { AuthShell } from "./Login";
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
 export function Register() {
+  const { t } = useTranslation();
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
@@ -38,34 +39,31 @@ export function Register() {
   };
 
   return (
-    <AuthShell
-      title="Create your organisation"
-      subtitle="You become the organisation administrator. You can then invite requesters, approvers, procurement and finance."
-    >
+    <AuthShell title={t("auth.registerTitle")} subtitle={t("auth.registerSubtitle")}>
       <form onSubmit={submit} className="space-y-4 rounded-lg border border-border bg-surface p-5">
-        <Field label="Organisation name" error={fieldErrors.organization_name}>
+        <Field label={t("auth.orgName")} error={fieldErrors.organization_name}>
           <Input required value={form.organization_name} onChange={set("organization_name")} />
         </Field>
-        <Field label="Your name" error={fieldErrors.full_name}>
+        <Field label={t("auth.yourName")} error={fieldErrors.full_name}>
           <Input required autoComplete="name" value={form.full_name} onChange={set("full_name")} />
         </Field>
-        <Field label="Work e-mail" error={fieldErrors.email}>
+        <Field label={t("auth.workEmail")} error={fieldErrors.email}>
           <Input required type="email" autoComplete="email" value={form.email} onChange={set("email")} />
         </Field>
-        <Field label="Password" error={fieldErrors.password} hint="At least 10 characters, including a letter and a digit.">
+        <Field label={t("auth.password")} error={fieldErrors.password} hint={t("auth.passwordHint")}>
           <Input required type="password" autoComplete="new-password" value={form.password} onChange={set("password")} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Currency">
+          <Field label={t("auth.currency")}>
             <Select value={form.base_currency} onChange={set("base_currency")}>
               {["JPY", "USD", "EUR", "GBP"].map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </Select>
           </Field>
-          <Field label="Fiscal year starts">
+          <Field label={t("auth.fyStarts")}>
             <Select value={form.fiscal_year_start_month} onChange={set("fiscal_year_start_month")}>
-              {MONTHS.map((m, i) => (
+              {monthNames().map((m, i) => (
                 <option key={m} value={i + 1}>
                   {m}
                 </option>
@@ -75,16 +73,15 @@ export function Register() {
         </div>
         {!Object.keys(fieldErrors).length && <ErrorNotice error={register.error} />}
         <Button type="submit" className="w-full" loading={register.isPending}>
-          Create organisation
+          {t("auth.createOrg")}
         </Button>
         <p className="text-center text-sm text-muted">
-          Already registered?{" "}
+          {t("auth.alreadyRegistered")}{" "}
           <Link className="font-medium text-primary hover:underline" to="/login">
-            Sign in
+            {t("auth.signIn")}
           </Link>
         </p>
       </form>
     </AuthShell>
   );
 }
-

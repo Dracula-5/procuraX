@@ -1,3 +1,5 @@
+import { validationMessage } from "./validation";
+
 // Same-origin "/api/v1" by default; a separately hosted API sets VITE_API_BASE_URL at build time.
 const BASE = ((import.meta.env.VITE_API_BASE_URL as string | undefined) || "/api/v1").replace(/\/+$/, "");
 const TOKEN_KEY = "procurax.token";
@@ -40,8 +42,8 @@ export class ApiError extends Error {
   fieldErrors(): Record<string, string> {
     if (this.code !== "validation_error" || !Array.isArray(this.details)) return {};
     const out: Record<string, string> = {};
-    for (const d of this.details as { loc: (string | number)[]; msg: string }[]) {
-      out[String(d.loc[d.loc.length - 1])] = d.msg.replace(/^Value error, /, "");
+    for (const d of this.details as { loc: (string | number)[]; msg: string; type?: string }[]) {
+      out[String(d.loc[d.loc.length - 1])] = validationMessage(d.type, d.msg);
     }
     return out;
   }

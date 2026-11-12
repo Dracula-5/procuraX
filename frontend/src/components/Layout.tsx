@@ -1,86 +1,95 @@
 import clsx from "clsx";
 import {
-  Building2,
   Boxes,
+  Building2,
   ClipboardCheck,
   FileText,
   Gauge,
-  MessageSquareText,
+  Landmark,
   LogOut,
   Menu,
+  MessageSquareText,
   ScrollText,
   ShieldCheck,
   Truck,
+  UserRoundCog,
   Users,
   Wallet,
   X,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
-import { label, ROLE_LABELS } from "../lib/format";
-import { Badge } from "./ui";
+import { useLabels } from "../lib/labels";
 import { DeploymentNotice } from "./DeploymentNotice";
+import { LanguageSwitcher } from "./LanguageSwitcher";
+import { Badge, Spinner } from "./ui";
 
 interface NavItem {
   to: string;
-  label: string;
+  key: "dashboard" | "requests" | "approvals" | "delegations" | "vendors" | "p2p" | "assistant" | "budgets" | "policy" | "paymentSettings" | "audit" | "users" | "structure";
   icon: ReactNode;
-  permission?: string;
+  /** Shown when the user holds any of these permissions (none = everyone). */
+  anyOf?: string[];
 }
 
-const NAV: { section: string; items: NavItem[] }[] = [
+const NAV: { section: "procurement" | "finance" | "admin"; items: NavItem[] }[] = [
   {
-    section: "Procurement",
+    section: "procurement",
     items: [
-      { to: "/app", label: "Dashboard", icon: <Gauge className="size-4" /> },
-      { to: "/app/requests", label: "Purchase requests", icon: <FileText className="size-4" /> },
-      { to: "/app/approvals", label: "Approval inbox", icon: <ClipboardCheck className="size-4" />, permission: "approval:act" },
-      { to: "/app/vendors", label: "Vendors", icon: <Truck className="size-4" />, permission: "vendor:read" },
-      { to: "/app/p2p", label: "Purchase to pay", icon: <Boxes className="size-4" />, permission: "purchase_request:read_all" },
-      { to: "/app/assistant", label: "Procurement assistant", icon: <MessageSquareText className="size-4" />, permission: "analytics:read" },
+      { to: "/app", key: "dashboard", icon: <Gauge className="size-4" /> },
+      { to: "/app/requests", key: "requests", icon: <FileText className="size-4" /> },
+      { to: "/app/approvals", key: "approvals", icon: <ClipboardCheck className="size-4" />, anyOf: ["approval:act"] },
+      { to: "/app/approvals/delegations", key: "delegations", icon: <UserRoundCog className="size-4" />, anyOf: ["approval:act"] },
+      { to: "/app/vendors", key: "vendors", icon: <Truck className="size-4" />, anyOf: ["vendor:read"] },
+      { to: "/app/p2p", key: "p2p", icon: <Boxes className="size-4" />, anyOf: ["purchase_request:read_all"] },
+      { to: "/app/assistant", key: "assistant", icon: <MessageSquareText className="size-4" />, anyOf: ["analytics:read"] },
     ],
   },
   {
-    section: "Finance & control",
+    section: "finance",
     items: [
-      { to: "/app/budgets", label: "Budgets", icon: <Wallet className="size-4" />, permission: "budget:read" },
-      { to: "/app/policy", label: "Approval policy", icon: <ShieldCheck className="size-4" />, permission: "policy:read" },
-      { to: "/app/audit", label: "Audit trail", icon: <ScrollText className="size-4" />, permission: "audit:read" },
+      { to: "/app/budgets", key: "budgets", icon: <Wallet className="size-4" />, anyOf: ["budget:read"] },
+      { to: "/app/policy", key: "policy", icon: <ShieldCheck className="size-4" />, anyOf: ["policy:read"] },
+      { to: "/app/admin/payment-settings", key: "paymentSettings", icon: <Landmark className="size-4" />, anyOf: ["organization:manage", "payment:approve"] },
+      { to: "/app/audit", key: "audit", icon: <ScrollText className="size-4" />, anyOf: ["audit:read"] },
     ],
   },
   {
-    section: "Administration",
+    section: "admin",
     items: [
-      { to: "/app/admin/users", label: "Users & roles", icon: <Users className="size-4" />, permission: "user:manage" },
-      { to: "/app/admin/structure", label: "Organisation", icon: <Building2 className="size-4" />, permission: "org_structure:manage" },
+      { to: "/app/admin/users", key: "users", icon: <Users className="size-4" />, anyOf: ["user:manage"] },
+      { to: "/app/admin/structure", key: "structure", icon: <Building2 className="size-4" />, anyOf: ["org_structure:manage"] },
     ],
   },
 ];
 
 export function Layout() {
+  const { t } = useTranslation();
+  const labels = useLabels();
   const { me, can, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   if (!me) return null;
 
   const sidebar = (
-    <nav className="flex h-full flex-col gap-6 overflow-y-auto p-4" aria-label="Main">
+    <nav className="flex h-full flex-col gap-6 overflow-y-auto p-4" aria-label={t("nav.main")}>
       <div className="flex items-center gap-2 px-2">
         <img src="/favicon.svg" alt="" className="size-7" />
         <span className="text-base font-semibold tracking-tight">ProcuraX</span>
       </div>
       {NAV.map(({ section, items }) => {
-        const visible = items.filter((i) => !i.permission || can(i.permission));
+        const visible = items.filter((i) => !i.anyOf || i.anyOf.some((p) => can(p)));
         if (!visible.length) return null;
         return (
           <div key={section}>
-            <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-muted">{section}</p>
+            <p className="mb-1 px-2 text-xs font-semibold uppercase tracking-wide text-muted">{t(`nav.section.${section}`)}</p>
             <ul className="space-y-0.5">
               {visible.map((item) => (
                 <li key={item.to}>
                   <NavLink
                     to={item.to}
-                    end={item.to === "/app"}
+                    end={item.to === "/app" || item.to === "/app/approvals"}
                     onClick={() => setOpen(false)}
                     className={({ isActive }) =>
                       clsx(
@@ -90,7 +99,7 @@ export function Layout() {
                     }
                   >
                     {item.icon}
-                    {item.label}
+                    {t(`nav.item.${item.key}`)}
                   </NavLink>
                 </li>
               ))}
@@ -105,13 +114,13 @@ export function Layout() {
           <div className="mt-2 flex flex-wrap gap-1">
             {me.roles.map((r) => (
               <Badge key={r} tone="primary">
-                {label(ROLE_LABELS, r)}
+                {labels.role(r)}
               </Badge>
             ))}
           </div>
         </div>
         <button onClick={signOut} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-muted hover:bg-surface-2 hover:text-fg">
-          <LogOut className="size-4" /> Sign out
+          <LogOut className="size-4" /> {t("layout.signOut")}
         </button>
       </div>
     </nav>
@@ -128,25 +137,27 @@ export function Layout() {
       )}
       <div className="min-w-0">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface/95 px-4 backdrop-blur lg:px-8">
-          <button className="rounded-md p-1.5 text-muted hover:bg-surface-2 lg:hidden" onClick={() => setOpen((o) => !o)} aria-label="Toggle menu">
+          <button className="rounded-md p-1.5 text-muted hover:bg-surface-2 lg:hidden" onClick={() => setOpen((o) => !o)} aria-label={t("layout.toggleMenu")}>
             {open ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
           <p className="truncate text-sm font-medium">{me.organization.name}</p>
           {me.organization.is_demo && (
             <Badge tone="warn" className="ml-1">
-              Demo tenant · fictional data
+              {t("layout.demoTenant")}
             </Badge>
           )}
           <span className="ml-auto hidden text-xs text-muted sm:inline">
-            FY starts month {me.organization.fiscal_year_start_month} · {me.organization.base_currency}
+            {t("layout.fyInfo", { month: me.organization.fiscal_year_start_month, currency: me.organization.base_currency })}
           </span>
+          <LanguageSwitcher className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted sm:ml-0" />
         </header>
         <DeploymentNotice />
         <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-          <Outlet />
+          <Suspense fallback={<Spinner />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>
   );
 }
-
