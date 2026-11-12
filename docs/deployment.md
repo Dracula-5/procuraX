@@ -156,6 +156,13 @@ reachable `clamd` (`PROCURAX_CLAMAV_ENABLED`, `PROCURAX_CLAMAV_HOST`); there is 
 so on the free tier leave it off and decide whether `PROCURAX_ALLOW_UNSCANNED_DOCUMENTS=true` is
 acceptable (without it, invoices with attached files cannot be paid).
 
+## NTA registry lookup (optional)
+
+Apply for a Web-API application ID on the National Tax Agency's qualified-invoice issuer publication site
+(free; the NTA reviews the request). Then set `PROCURAX_NTA_REGISTRY_ENABLED=true` and
+`PROCURAX_NTA_APPLICATION_ID`. Production refuses to start with the flag on and no ID. Until then,
+registration numbers are checked by check digit and vendor master only. See [einvoicing.md](einvoicing.md).
+
 ## If something does not work
 
 | Symptom | Likely cause | Fix |

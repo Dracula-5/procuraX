@@ -29,6 +29,8 @@ Approvals, escalations, delegations, rejections, PO dispatch, invoice mismatches
 approval raise notifications through a transactional outbox and a PostgreSQL-only worker: in-app (bell),
 e-mail and Slack/Teams webhooks, the last two off until configured. Invoice source files are stored in
 S3-compatible storage with their SHA-256, optionally virus-scanned with ClamAV, and immutable once attached.
+Peppol / JP PINT UBL invoices can be imported into the same three-way match, and registration numbers can be
+checked against the NTA registry Web-API (off until an NTA application ID is provided). See [e-invoicing](docs/einvoicing.md).
 No pilot has been run; [illustrative personas](docs/user_personas.md) show the intended users.
 See the [roadmap](docs/transformation_roadmap.md).
 
@@ -57,7 +59,7 @@ The controls exist on paper but are not operationalised.
 | Budget | Spreadsheet, checked late | Checked at submit and re-checked under a lock at final approval | ✅ |
 | Vendors | Buyer's inbox | Vendor master with onboarding control, risk, contract, invoice registration no. | ✅ |
 | Audit | Reconstructed by hand | Append-only trail, enforced by database grants | ✅ |
-| PO → receipt → invoice → 3-way match | ERP keying, visual checks | Supplier line prices flow to PO lines; cumulative line match (no double billing); consumption tax per rate; registration number check digit + vendor master; finance exception decision | 🟡 P6–P7; Zengin transfer-file export done; e-invoicing and NTA registry lookup remain |
+| PO → receipt → invoice → 3-way match | ERP keying, visual checks | Supplier line prices flow to PO lines; cumulative line match (no double billing); consumption tax per rate; registration number check digit, vendor master and NTA registry (optional); Peppol / JP PINT UBL import; finance exception decision | 🟡 P6–P7; Zengin export done; registry lookup untested against the live NTA API; Peppol sending out of scope |
 | Spend visibility | Month-end exports | Live category/department/vendor spend, 12-month trend, cycle percentiles, invoice match summaries and current-FY budget utilization by cost centre | 🟡 P8 partial; savings opportunities and anomaly review remain |
 
 ## Architecture
@@ -90,7 +92,7 @@ What makes it enterprise-grade rather than CRUD:
 - **Least privilege in the database.** The app role cannot UPDATE or DELETE audit rows or edit
   the RBAC catalogue.
 
-→ [System design & 14 ADRs](docs/system_design.md) · [Dataset strategy](docs/datasets.md) · [Local verification](docs/local_verification.md) ·
+→ [System design & 15 ADRs](docs/system_design.md) · [Dataset strategy](docs/datasets.md) · [Local verification](docs/local_verification.md) ·
 [Product spec](docs/product_spec.md) ·
 [Free deployment](docs/deployment.md) · [Illustrative personas](docs/user_personas.md) ·
 [RBAC matrix (generated)](docs/generated/rbac_matrix.md) ·
@@ -125,7 +127,7 @@ Current implementation verification:
 
 | What | Result |
 |---|---|
-| Backend API and domain tests | 271 passing (gap-closure Phase 3; plus 1 opt-in real-ClamAV test), including tenant isolation, RLS, concurrency, notification workers, invoice-file immutability and P2P controls |
+| Backend API and domain tests | 294 passing (gap-closure Phase 4; plus 1 opt-in real-ClamAV test), including tenant isolation, RLS, concurrency, notification workers, invoice-file immutability, NTA registry (mocked) and UBL import |
 | Frontend production build | Passed (`tsc -b` + Vite). Main bundle 298.17 kB JS (93.20 kB gzip) with signed-in pages split into route chunks and Japanese strings in a 44.88 kB chunk loaded on demand; 24.11 kB CSS |
 | Frontend tests | 60 passing (Vitest + Testing Library): translations, formatting, error mapping, permission guard, language switcher, bank-account form, delegation screen, notifications |
 | Backend static checks | Ruff, ruff format and mypy passed |

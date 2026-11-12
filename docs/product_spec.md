@@ -52,7 +52,7 @@ A request the caller cannot see returns **404, not 403**, so its existence is ne
 | Vendor confirmation | 🟡 P6 | Manual acknowledgement recorded by procurement; vendor portal not implemented |
 | Goods / service receipt | 🟡 P6 | Aggregate accepted/damaged quantity and evidence reference; no item-level receipt |
 | Invoice submission + OCR/extraction | 🟡 P6 / P11 | Manual line-level invoice entry (with tax rates and registration number) and a local Tesseract PDF/image extraction preview, benchmarked on synthetic renders. Source files are stored and attached to the invoice (immutable, SHA-256, optional virus scan); OCR output is not auto-submitted. |
-| 3-way match | 🟡 P7 | Per-line price, cumulative billable quantity, consumption tax per rate and registration number checks; finance exception adjudication |
+| 3-way match | 🟡 P7 | Per-line price, cumulative billable quantity, consumption tax per rate and registration number checks (plus the NTA registry when enabled); Peppol / JP PINT UBL invoices go through the same match; finance exception adjudication |
 | Finance validation & payment approval | 🟡 P7 | Matched invoice can request payment; finance-manager role decides with self-approval protection. Approved payments export as a Zengin 総合振込 file for bank upload; ProcuraX never moves money |
 | Spend analytics | 🟡 P8 | Approved value by category, PO/invoice/payment state counts, and completed request decision-cycle mean/max; department/vendor views, 12-month trend, cycle median/P90, date/dimension filters, CSV export and current-FY cost-centre budget utilization implemented; savings opportunities and anomaly review remain |
 | Audit trail | ✅ | Every transition, in the same DB transaction, append-only at DB level |

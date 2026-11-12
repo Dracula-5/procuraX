@@ -72,6 +72,21 @@ Full check list: ruff, format, mypy, migrations round trip + `alembic check`, **
 1 skipped** (the opt-in real-ClamAV test, run separately and passing), `gen_docs --check`,
 `check_doc_claims` (14 ADRs), `pip-audit` (none), `oxlint`, build, `npm audit` (0), **60 frontend tests**.
 
-## Phases 4–10
+## Phase 4: Japan compliance (branch `gaps/phase-4-japan-compliance`, notes: [prs/phase-4.md](prs/phase-4.md))
+
+| Gap | Status | Verified by | Remaining |
+|---|---|---|---|
+| NTA registry Web-API adapter behind a flag (needs an application ID) | 🟡 | Real-HTTP mock of the v1 `num` endpoint: API call with the application ID, cache hit, revoked/not-found → exception, outage → local checks or stale cache; production guard | **Not called against the real NTA API** (needs your application ID); parameters/field names to confirm live |
+| Cache results with a timestamp; record evidence on the invoice match; fall back to the check digit | ✅ | `qualified_invoice_registry_cache` (fetched_at); `match_details.qualified_invoice.registry` (source, status, name, dates); fallback tests | — |
+| No scraping | ✅ | Only the official Web-API endpoint is called | — |
+| Peppol / JP PINT UBL import into the invoice + line model, same three-way match | ✅ | JP PINT sample (10 % + 8 % lines) imports and matches; price mismatch, currency, order, line reference, unsafe XML (billion laughs, XXE) and encoding cases | Full Schematron validation left to an access point |
+| Sample files in tests/fixtures | ✅ | `tests/fixtures/einvoice/*.xml`, `tests/fixtures/nta/*.json` | — |
+| Document what a Peppol access-point integration needs | ✅ | `docs/einvoicing.md` | Sending over Peppol is out of scope (as the brief says) |
+
+Full check list: **294 backend tests passed, 1 skipped** (opt-in real ClamAV), **60 frontend tests**,
+migrations round trip + `alembic check`, `gen_docs`, `check_doc_claims` (15 ADRs), `pip-audit`,
+`npm audit`, `oxlint`, build: all passed on the first run.
+
+## Phases 5–10
 
 Not started. Rows are added when each phase begins.

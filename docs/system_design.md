@@ -212,6 +212,8 @@ No AI result is connected to automatic approval or payment.
 | Team chat | Slack / Microsoft Teams incoming webhooks per tenant; off unless `PROCURAX_WEBHOOKS_ENABLED` | **Built:** the tenant admin picks events; URL host allow-listed and encrypted at rest |
 | Object storage | S3-compatible behind `ObjectStorage` (RustFS locally and in CI, AWS S3 or Cloudflare R2 in production; local disk for development) | **Built for invoice files:** uploads through the API (type, magic-byte, size and page checks), write-once keys (`If-None-Match: *`), downloads after a permission check via 60-second SigV4 presigned URLs or streamed with a hash re-check; optional ClamAV scan by the worker |
 | Payment / accounting sandbox | Webhooks | Payment status back into the P2P record |
+| NTA qualified-invoice registry | Official Web-API (needs an NTA application ID), cached 24 h, off by default | **Built:** registration status on the invoice date recorded on the match; disabled/unreachable falls back to the check digit + vendor master. Tested against a local mock only |
+| Peppol / JP PINT e-invoices | Receive UBL 2.1 Invoice XML (`POST /einvoices`) | **Built:** mapped onto PO lines and matched like manual invoices; safe XML parsing. Sending over Peppol (access point) is out of scope ([einvoicing.md](einvoicing.md)) |
 
 Idempotency: every notification delivery has a deterministic key (event + channel + recipient) with a
 unique constraint, so replays insert nothing twice; the key is sent as the e-mail Message-ID and the
@@ -415,3 +417,13 @@ published; RustFS (Apache-2.0, S3- and MinIO-compatible) is used and was checked
 and presigned URLs. *Consequences:* evidence cannot be swapped silently; uploads pass through the API
 (18 MiB cap); no automatic deletion at the end of retention yet (bucket lifecycle or object lock is the
 production control).
+
+**ADR-015 Japanese compliance data comes from official sources, never decides alone, and fails safe.**
+*Context:* a registration number's check digit does not prove registration; e-invoices arrive as Peppol
+UBL. *Decision:* the NTA registry is read only through its official Web-API (no scraping), cached with a
+fetch time, and treated as evidence: an issuer not active on the invoice date turns the match into a
+finance exception, a human decides. When the API is off or down, the previous checks apply and the match
+records why. UBL invoices are converted into the existing invoice input and run through the same
+deterministic match; no separate path can approve them. *Consequences:* no new way to auto-approve
+anything; one more external dependency behind a flag; full JP PINT Schematron validation is left to a
+certified access point.
