@@ -50,9 +50,17 @@ export const p2p: typeof enP2p = {
     lineChecks: "明細チェック",
     registration: "登録番号：{{status}}",
     tax: "消費税：{{status}}",
+    registry: "国税庁公表サイト：{{status}}（{{source}}）",
     approveException: "例外を承認",
     rejectException: "例外を却下",
     requestPayment: "支払承認を依頼",
+  },
+  einvoice: {
+    title: "電子インボイスの取込（Peppol・JP PINT）",
+    intro: "Peppol で受け取った UBL 2.1 の請求書 XML をアップロードします。注文参照から発注書を特定し、手入力の請求書とまったく同じように照合します。電子インボイスの送信には対応していません。",
+    file: "UBL 請求書（XML）",
+    import: "取り込む",
+    imported: "請求書 {{number}} を取り込みました：",
   },
   files: {
     title: "請求書ファイル",

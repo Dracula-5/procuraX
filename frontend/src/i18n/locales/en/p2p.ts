@@ -48,9 +48,17 @@ export const p2p = {
     lineChecks: "Line checks",
     registration: "Registration: {{status}}",
     tax: "Tax: {{status}}",
+    registry: "NTA registry: {{status}} ({{source}})",
     approveException: "Approve exception",
     rejectException: "Reject exception",
     requestPayment: "Request payment approval",
+  },
+  einvoice: {
+    title: "Import an e-invoice (Peppol / JP PINT)",
+    intro: "Upload a UBL 2.1 invoice XML received through Peppol. Its order reference finds the purchase order, and it is matched exactly like a manually entered invoice. Sending e-invoices is not supported.",
+    file: "UBL invoice (XML)",
+    import: "Import",
+    imported: "Imported invoice {{number}}:",
   },
   files: {
     title: "Invoice files",

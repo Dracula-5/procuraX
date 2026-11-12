@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/useAuth";
+import { EInvoiceImport } from "../components/EInvoiceImport";
 import { InvoiceFiles } from "../components/InvoiceFiles";
 import { Button, Card, EmptyState, ErrorNotice, Field, Input, PageHeader, Select, Spinner, Table, Td, Th } from "../components/ui";
 import { api } from "../lib/api";
@@ -10,7 +11,7 @@ import { useLabels } from "../lib/labels";
 
 type OrderLine = { id: string; line_no: number; description: string; quantity: string; unit_price: string; line_total: string };
 type Order = { id: string; number: string; request_id: string; vendor_id: string; status: string; currency: string; total: string; awarded_quote_id: string | null; items: OrderLine[]; created_at: string };
-type Invoice = { id: string; invoice_number: string; purchase_order_id: string; total: string; currency: string; match_status: string; invoice_date: string; registration_number: string | null; match_details: { exceptions?: string[]; qualified_invoice?: { status: string }; tax?: { status: string } }; line_match_details: { line_no: number; price_status: string; quantity_status: string }[] };
+type Invoice = { id: string; invoice_number: string; purchase_order_id: string; total: string; currency: string; match_status: string; invoice_date: string; registration_number: string | null; match_details: { exceptions?: string[]; qualified_invoice?: { status: string; registry?: { source: string; status?: string } }; tax?: { status: string } }; line_match_details: { line_no: number; price_status: string; quantity_status: string }[] };
 type InvoiceLineInput = { purchase_order_item_id: string; quantity: string; unit_price: string; tax_rate?: string };
 type Request = { id: string; number: string; title: string; status: string; estimated_total: string; currency: string; preferred_vendor_id: string | null };
 type Payment = { id: string; invoice_id: string; amount: string; currency: string; status: string; comment: string | null; export_reference: string | null };
@@ -197,6 +198,8 @@ export function PurchaseToPay() {
                       {i.match_details.qualified_invoice && i.match_details.qualified_invoice.status !== "not_applicable" && (
                         <p>
                           {t("p2p.invoices.registration", { status: humanize(i.match_details.qualified_invoice.status) })}
+                          {i.match_details.qualified_invoice.registry?.status &&
+                            ` · ${t("p2p.invoices.registry", { status: humanize(i.match_details.qualified_invoice.registry.status), source: humanize(i.match_details.qualified_invoice.registry.source) })}`}
                           {i.match_details.tax?.status && i.match_details.tax.status !== "not_compared" ? ` · ${t("p2p.invoices.tax", { status: humanize(i.match_details.tax.status) })}` : ""}
                         </p>
                       )}
@@ -221,6 +224,7 @@ export function PurchaseToPay() {
             </Table>
           )}
         </Card>
+        {can("vendor:manage") && <EInvoiceImport />}
         <InvoiceFiles invoices={invoices.data ?? []} canUpload={can("vendor:manage")} />
         <Card title={t("p2p.payments.title")} className="xl:col-span-2">
           {can("payment:approve") && payments.data?.some((p) => p.status === "approved") && (
