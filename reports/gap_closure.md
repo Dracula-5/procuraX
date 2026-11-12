@@ -55,6 +55,23 @@ Full check list: ruff, format, mypy, migrations round trip + `alembic check`, **
 `gen_docs --check`, `check_doc_claims` (13 ADRs), `pip-audit` (none), `oxlint`, build (main bundle
 302.42 kB), `npm audit` (0), **60 frontend tests**: all passed on the first run.
 
-## Phases 3–10
+## Phase 3: invoice file storage (branch `gaps/phase-3-invoice-storage`, notes: [prs/phase-3.md](prs/phase-3.md))
+
+| Gap | Status | Verified by | Remaining |
+|---|---|---|---|
+| S3-compatible storage through an interface (MinIO local/CI, S3/R2 prod, behind config) | ✅ (MinIO substituted) | S3 test against RustFS 1.0.5 (write-once, SigV4 presigned URL, UTF-8 filename); local backend tests | MinIO no longer publishes community images, so RustFS is the stand-in; not run against AWS S3 or R2 (needs your account) |
+| `invoice_documents` (tenant RLS): key, SHA-256, size, MIME, pages, uploader, scan status, linked to invoice; immutable once linked | ✅ | Trigger blocks identity changes, re-link and delete even for the owner; runtime role has no DELETE; RLS tests | — |
+| Keep magic-byte, size and page limits | ✅ | Unit tests per rejection reason; real PDF page count (pypdf) | — |
+| Optional ClamAV scan through the worker (pending / clean / infected) | ✅ | clamd protocol stand-in (clean + infected); **real ClamAV 1.4**: clean PDF clean (direct and upload → worker), raw EICAR detected | EICAR cannot be embedded in a valid upload, so the infected API path relies on the stand-in |
+| Infected or unscanned files cannot back a payable invoice | ✅ | Payment request and approval refused for infected / pending / not-scanned (unless explicitly allowed) | — |
+| Downloads through the API with a permission check (short-lived presigned URLs) | ✅ | 60 s SigV4 presign or streamed with hash re-check; permission and tenant tests; infected/pending blocked | — |
+| Retention setting in config and docs | ✅ | `PROCURAX_DOCUMENT_RETENTION_YEARS` (7) recorded per file; deployment guide | No automatic deletion; bucket versioning/object lock recommended |
+| *Found:* boto3 presigned with SigV2 against custom endpoints | ✅ | Forced SigV4; test asserts `X-Amz-Signature` | — |
+
+Full check list: ruff, format, mypy, migrations round trip + `alembic check`, **271 backend tests passed,
+1 skipped** (the opt-in real-ClamAV test, run separately and passing), `gen_docs --check`,
+`check_doc_claims` (14 ADRs), `pip-audit` (none), `oxlint`, build, `npm audit` (0), **60 frontend tests**.
+
+## Phases 4–10
 
 Not started. Rows are added when each phase begins.

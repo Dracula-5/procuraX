@@ -27,10 +27,18 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U procurax -d procurax_test"
           --health-interval 5s --health-timeout 3s --health-retries 20
+      # S3-compatible storage for the invoice-file tests (MinIO no longer publishes images).
+      object-storage:
+        image: rustfs/rustfs:1.0.5
+        env:
+          RUSTFS_ACCESS_KEY: procurax
+          RUSTFS_SECRET_KEY: procurax-dev-secret
+        ports: ["9000:9000"]
     env:
       PROCURAX_ENV: test
       PROCURAX_DATABASE_URL: postgresql+asyncpg://procurax_app:procurax_app_dev@127.0.0.1:5432/procurax_test
       PROCURAX_DATABASE_ADMIN_URL: postgresql+asyncpg://procurax:procurax_dev@127.0.0.1:5432/procurax_test
+      PROCURAX_TEST_S3_ENDPOINT: http://127.0.0.1:9000
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

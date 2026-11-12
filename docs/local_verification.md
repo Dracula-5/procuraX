@@ -46,6 +46,24 @@ link to the request; the manager's in-app inbox showed the same event; two furth
 nothing to do. Slack/Teams posting is covered by tests against a local HTTP receiver; no real Slack or
 Teams workspace was used.
 
+## Invoice files (RustFS, ClamAV)
+
+`docker compose up -d` starts RustFS on :9000 (MinIO no longer publishes community images). Set
+`PROCURAX_STORAGE_BACKEND=s3`, `PROCURAX_S3_ENDPOINT_URL=http://127.0.0.1:9000`,
+`PROCURAX_S3_ACCESS_KEY_ID=procurax`, `PROCURAX_S3_SECRET_ACCESS_KEY=procurax-dev-secret` and run
+`uv run python -m app.scripts.init_storage` once. Optional scanning: `docker compose --profile scan up -d clamav`
+and `PROCURAX_CLAMAV_ENABLED=true`. `PROCURAX_TEST_S3_ENDPOINT` and `PROCURAX_TEST_CLAMAV_PORT` enable the
+opt-in tests against these servers.
+
+Recorded checks (2026-11-13, local Windows workstation): RustFS 1.0.5 and SeaweedFS both enforced
+`If-None-Match: *` (second write → `PreconditionFailed`) and served presigned GETs; the S3 storage test
+passes against RustFS with SigV4 URLs (the first run caught boto3 signing with legacy SigV2 against a
+custom endpoint). With ClamAV 1.4 (`clamav/clamav:1.4`): a clean 2-page PDF scanned clean, both directly
+and through upload → worker; a raw EICAR file was detected (`Eicar-Test-Signature`); EICAR appended inside
+a PDF was *not* detected, as the EICAR convention requires the string at the start of the file. Because
+uploads must be valid PDF/PNG/JPEG/TIFF, the infected path through the API is tested with a clamd
+protocol stand-in.
+
 ## Local invoice OCR
 
 The P2P page accepts PDF/image uploads up to 18 MiB and calls the local Tesseract adapter; extracted fields are parsed in OCR-tolerant mode and returned for human review, never persisted as an invoice.

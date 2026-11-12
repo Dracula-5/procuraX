@@ -62,8 +62,9 @@ flowchart TB
     Migr[Alembic · owner role] -.release step.-> PG
     W[Notification worker<br/>python -m app.worker or in-process] -->|claims outbox rows · SKIP LOCKED| PG
     W -->|SMTP · Slack / Teams webhooks · off by default| EXT[(Mail server · team chat)]
+    API -->|invoice files · write-once keys| OBJ[(S3-compatible storage<br/>local disk in dev)]
+    W -->|ClamAV scan · optional| AV[clamd]
     subgraph Planned[Planned]
-      OBJ[Object storage · gap-closure Phase 3]
       AIGW[AI gateway · Phase 8]
     end
     API -.-> Planned
@@ -169,7 +170,13 @@ key), `notifications` (in-app), `notification_preferences` and `notification_cha
 Teams webhooks, URL encrypted). All five have forced RLS; the runtime role cannot delete from them
 except to remove a channel.
 
-Planned tables: invoice line items, `spend_transactions`, `documents`, `ai_predictions`, `feedback`.
+Invoice files *(gap-closure Phase 3)*: `invoice_documents` holds the object key, SHA-256, size, MIME
+type, page count, uploader, retain-until date, scan status and the invoice link. A trigger makes a file's
+identity immutable, the link one-time, and linked rows undeletable (also for the owner role, except under
+an explicit transaction-local purge flag used by the fictional demo reset); the runtime role has no
+DELETE privilege.
+
+Planned tables: invoice line items, `spend_transactions`, `ai_predictions`, `feedback`.
 
 ## 7. AI architecture *(offline baselines delivered; full AI pipeline planned)*
 
@@ -203,7 +210,7 @@ No AI result is connected to automatic approval or payment.
 | Identity provider | OIDC SSO | Replaces passwords for enterprise tenants |
 | E-mail | SMTP from the outbox worker (Mailpit locally); off unless `PROCURAX_EMAIL_ENABLED` | **Built:** approval, escalation, delegation, rejection, PO, invoice-mismatch and payment events in the recipient's language. Invitation e-mails are not sent yet |
 | Team chat | Slack / Microsoft Teams incoming webhooks per tenant; off unless `PROCURAX_WEBHOOKS_ENABLED` | **Built:** the tenant admin picks events; URL host allow-listed and encrypted at rest |
-| Object storage | S3-compatible, pre-signed uploads | Attachments, invoices; malware and file-type scanning before processing |
+| Object storage | S3-compatible behind `ObjectStorage` (RustFS locally and in CI, AWS S3 or Cloudflare R2 in production; local disk for development) | **Built for invoice files:** uploads through the API (type, magic-byte, size and page checks), write-once keys (`If-None-Match: *`), downloads after a permission check via 60-second SigV4 presigned URLs or streamed with a hash re-check; optional ClamAV scan by the worker |
 | Payment / accounting sandbox | Webhooks | Payment status back into the P2P record |
 
 Idempotency: every notification delivery has a deterministic key (event + channel + recipient) with a
@@ -224,6 +231,7 @@ writes will follow the same outbox pattern.
 | Secrets | Env vars; startup refuses the default JWT secret in `prod`; `.env` ignored by git |
 | Headers | `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, COOP; strict CORS allow-list, no credentials |
 | Invitations | 256-bit random tokens, stored as SHA-256, single use, 72 h expiry, revocable |
+| Invoice files | Accepted only as PDF/PNG/JPEG/TIFF whose bytes match the extension, ≤ 18 MiB, PDFs 1–10 pages and unencrypted; stored under an application-generated tenant-prefixed key (never the uploaded name); SHA-256 recorded and re-checked on scan and on streamed download; infected or still-scanning files cannot be downloaded or block payment; immutable once stored (trigger) |
 | Outbound webhooks | Tenant-supplied URLs must be https on an allow-listed Slack/Microsoft host (no credentials, default port), checked on save and again before every post (SSRF); stored encrypted (Fernet, key derived from `PROCURAX_DATA_ENCRYPTION_KEY`, rotation supported); never returned by the API |
 | SQL injection | ORM / bound parameters everywhere. The only interpolated DDL identifier (the role name in the migration) is regex-validated. |
 | Rate limiting *(P18)* | Login and invitation endpoints first (Redis token bucket) |
@@ -273,6 +281,8 @@ departments, cost centres, audit logs, inbox, timelines and cross-tenant referen
 | Notification worker crashes mid-batch | Its transaction rolls back; the claimed rows become claimable again (`FOR UPDATE SKIP LOCKED`). A message the receiver accepted before the crash may be sent twice (at-least-once); the delivery key lets receivers deduplicate |
 | Mail server or webhook down | The delivery backs off exponentially (30 s doubling to 1 h, ±20 % jitter), then is dead-lettered after `PROCURAX_NOTIFICATION_MAX_ATTEMPTS`; an org admin sees dead letters and retries them. The business transaction is never affected |
 | Business transaction fails | Its outbox row rolls back with it, so no notification describes a change that did not happen |
+| Object storage unavailable at upload | The upload fails before any row is written (bytes first, metadata second), so no row points at a missing object; a failed commit can leave an orphaned object, never a dangling row |
+| ClamAV down | Files stay `pending` (which blocks payment) and are retried with backoff; nothing is marked clean without a scan |
 
 Note on the concurrency test: it drives two genuinely concurrent DB transactions. With the
 lock removed, it failed in 1 of 3 runs (the race is timing-dependent), so it detects the bug
@@ -390,3 +400,18 @@ dual-write problem without an outbox anyway); `LISTEN/NOTIFY` (not durable). *Co
 enqueue is atomic with the business change; delivery is at-least-once, so receivers get an idempotency
 key; throughput is bounded by PostgreSQL, which is ample at this scale. Outbox and delivery rows are kept
 (no retention job yet).
+
+**ADR-014 Invoice files: object storage behind an interface, immutable records, scan before payment.**
+*Context:* invoices are evidence (7-year retention under Japanese corporate tax law; the Electronic
+Bookkeeping Act expects tamper resistance) and untrusted input. *Decision:* files go to S3-compatible
+storage behind a two-method interface (local disk for development; production refuses local disk), with
+write-once keys. The database row records the SHA-256 and becomes immutable through a trigger, and the
+invoice link is one-time. ClamAV runs in the worker, not the request; an invoice with an infected,
+still-pending or (unless explicitly allowed) unscanned file cannot be requested for or approved for
+payment. *Alternatives:* files in PostgreSQL (`bytea`, simplest but bloats backups and the free tier's
+storage); presigned direct uploads (less API load, but validation would then happen after the bytes are
+stored). MinIO was the intended local/CI stand-in, but its community container images are no longer
+published; RustFS (Apache-2.0, S3- and MinIO-compatible) is used and was checked for conditional writes
+and presigned URLs. *Consequences:* evidence cannot be swapped silently; uploads pass through the API
+(18 MiB cap); no automatic deletion at the end of retention yet (bucket lifecycle or object lock is the
+production control).

@@ -22,6 +22,12 @@ x-api-env: &api-env
   PROCURAX_EMAIL_ENABLED: "true"
   PROCURAX_SMTP_HOST: mailpit
   PROCURAX_SMTP_PORT: "1025"
+  PROCURAX_STORAGE_BACKEND: s3
+  PROCURAX_S3_ENDPOINT_URL: http://object-storage:9000
+  PROCURAX_S3_ACCESS_KEY_ID: procurax
+  PROCURAX_S3_SECRET_ACCESS_KEY: procurax-dev-secret
+  # Presigned URLs would name the internal host; stream downloads through the API instead.
+  PROCURAX_S3_PRESIGN_DOWNLOADS: "false"
 
 services:
   db:
@@ -69,6 +75,25 @@ services:
       mailpit:
         condition: service_started
 
+  object-storage:
+    image: rustfs/rustfs:1.0.5
+    environment:
+      RUSTFS_ACCESS_KEY: procurax
+      RUSTFS_SECRET_KEY: procurax-dev-secret
+    volumes:
+      - procurax_stack_objects:/data
+
+  storage-init:
+    image: procurax-api:local
+    command: ["python", "-m", "app.scripts.init_storage"]
+    environment: *api-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      object-storage:
+        condition: service_started
+    restart: on-failure
+
   mailpit:
     image: axllent/mailpit:v1.27
     ports:
@@ -84,4 +109,5 @@ services:
         condition: service_healthy
 
 volumes:
+  procurax_stack_objects:
   procurax_stack_pg:
