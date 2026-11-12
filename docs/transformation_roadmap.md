@@ -14,7 +14,7 @@ Legend: ✅ Implemented · 🟡 Partially implemented · ⬜ Future roadmap
 | Phase | Outcome for the client | Status | Evidence / what is missing |
 |---|---|---|---|
 | 1. Digital procurement intake | Every request enters through one form with line items, cost centre and justification | ✅ | Purchase requests, drafts, numbering, UI form |
-| 2. Approval workflow | Policy-driven routing; inbox; SLA; audit | 🟡 | Routing, inbox, due dates, audit, delegation and SLA escalation to the next eligible manager. The sweep runs inside the API on an interval (advisory-locked, so replicas never double-escalate) or from an external scheduler. External email/chat notifications remain. |
+| 2. Approval workflow | Policy-driven routing; inbox; SLA; audit | ✅ | Routing, inbox, due dates, audit, delegation (with a screen) and SLA escalation to the next eligible manager. Notifications through a transactional outbox and worker: in-app, e-mail, Slack/Teams (external channels off until configured; not exercised against a real mail provider or workspace). |
 | 3. Vendor management | Vendor master with onboarding control, risk and contract status | 🟡 | Onboarding and status control ✅. Performance/spend history ⬜ (needs PO/invoice data). |
 | 4. PO / invoice digitisation | POs from approved requests; receipts; invoice capture | 🟡 | POs use the supplier's quoted unit price per line (or apportion a total-only quote). Line-specific receipts and invoice lines. Local Tesseract OCR runs end to end; a synthetic rendered-invoice benchmark is recorded. Invoice files are not persisted; vendor portal and e-invoicing (Peppol/JP PINT) remain. |
 | 5. 3-way matching | Automated PO ↔ receipt ↔ invoice matching with an exception queue | 🟡 | Per-line price check; quantity checked against accepted quantity **not yet invoiced** (blocks double billing, serialised by a row lock); Japan consumption-tax check per rate with lawful rounding; qualified-invoice registration number check digit and vendor-master match; duplicate block; finance exception approve/reject; close requires every accepted quantity invoiced. Payment execution and a dedicated reconciliation UI remain. |
@@ -37,7 +37,7 @@ training on e-mail threads and spreadsheets.
 | P2 | Authentication, RBAC, tenants | ✅ (SSO/MFA/refresh cookies deferred to P18) |
 | P3 | Database & APIs | ✅ |
 | P4 | Public deployment | 🟡 **Live on free tiers:** web https://procurax.netlify.app (Netlify), API https://procurax-mod8.onrender.com (Render Docker, prod settings, public-demo mode) with Neon PostgreSQL. CI builds the image; the Deploy workflow migrates as the owner role. Remaining: database migration and demo seed run once the GitHub database secrets are added |
-| P5 | Approval & policy engine: delegation, escalation job, notifications | 🟡 Delegation/revocation with its own screen; SLA escalation scheduled in-process (advisory lock) or externally; external notifications remain |
+| P5 | Approval & policy engine: delegation, escalation job, notifications | ✅ Delegation/revocation with its own screen; SLA escalation scheduled in-process (advisory lock) or externally; outbox notifications (in-app, e-mail, Slack, Teams) |
 | P6 | Quote capture/comparison, PO lifecycle, receipts + invoice capture | 🟡 Eligibility-aware weighted baseline; optional supplier line prices flow exactly into PO lines; line receipts and invoice lines; OCR runs end to end with a recorded synthetic benchmark |
 | P7 | 3-way matching, duplicate invoice rules, payment approval | 🟡 Cumulative line matching, tax and registration checks, exception decisions, close rules, payment approval and Zengin 総合振込 transfer-file export (row-locked, once per payment) delivered; ProcuraX never moves money |
 | P8 | Spend analytics & executive dashboard | 🟡 Live category/department/vendor and P2P aggregates; date, category, department and vendor filters; 12-month trend; mean/median/P90/max cycle times; CSV export and current-FY budget utilization by cost centre delivered. Savings opportunities and anomaly review remain |
@@ -65,7 +65,7 @@ The per-gap detail, including how each item was verified, is in [`reports/gap_cl
 |---|---|---|
 | 0 | Docs match the code (permission count, Render region, pgvector wording) + CI check on counts; data-safe 0007 downgrade; dependency audits clean | ✅ |
 | 1 | Delegation, vendor bank account and payment-settings screens; Japanese UI | ✅ (Japanese wording not yet reviewed by a native-speaking procurement user; server-generated free text stays English) |
-| 2 | Transactional outbox, PostgreSQL worker, in-app / e-mail / Slack / Teams notifications | ⬜ |
+| 2 | Transactional outbox, PostgreSQL worker, in-app / e-mail / Slack / Teams notifications | ✅ (e-mail verified end to end with Mailpit; Slack/Teams posting verified with a local HTTP receiver, not a real workspace) |
 | 3 | Invoice file storage (S3-compatible), documents table, optional ClamAV scan | ⬜ |
 | 4 | NTA registry lookup adapter; Peppol / JP PINT UBL import | ⬜ |
 | 5 | Contracts, multi-currency, ERP journal export | ⬜ |

@@ -5,7 +5,8 @@
 #   open http://localhost:8088          (PROCURAX_WEB_PORT overrides the host port)
 #
 # Release order: db healthy → migrate (owner role, one-shot) → api (runtime role, RLS enforced)
-# → web (nginx: SPA + /api reverse proxy). Only the web port is published. Demo mode is off, as
+# and worker (notification outbox) → web (nginx: SPA + /api reverse proxy). E-mail goes to Mailpit
+# (http://localhost:8025); nothing is sent outside the machine. Only the web port is published. Demo mode is off, as
 # production settings require; register a tenant from the landing page.
 # Hosting still needs a platform decision: managed PostgreSQL replaces `db`, and TLS terminates
 # at the platform's load balancer in front of `web`.
@@ -18,6 +19,9 @@ x-api-env: &api-env
   PROCURAX_DEMO_MODE: "false"
   PROCURAX_PUBLIC_APP_URL: ${PROCURAX_PUBLIC_APP_URL:-https://procurax.example}
   PROCURAX_CORS_ORIGINS: '["${PROCURAX_PUBLIC_APP_URL:-https://procurax.example}"]'
+  PROCURAX_EMAIL_ENABLED: "true"
+  PROCURAX_SMTP_HOST: mailpit
+  PROCURAX_SMTP_PORT: "1025"
 
 services:
   db:
@@ -53,6 +57,22 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+
+  # Notification outbox worker: a separate process, as in production. Several can run at once.
+  worker:
+    image: procurax-api:local
+    command: ["python", "-m", "app.worker"]
+    environment: *api-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "${PROCURAX_MAILPIT_PORT:-8025}:8025"
 
   web:
     build: ./frontend

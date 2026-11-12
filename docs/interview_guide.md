@@ -34,9 +34,9 @@ Use this as a discussion guide, not a script. The client case is fictional. Sepa
 
 **Why PostgreSQL?** Transactions, constraints, JSONB for explainability snapshots, mature indexing, and row-level security in one relational store.
 
-**Why Redis?** It is not in the current implementation. Consider it only if measured caching, distributed rate limiting or queue needs justify operating another stateful service.
+**Why Redis?** It is not in the current implementation. Notifications use PostgreSQL as the queue (transactional outbox + `SKIP LOCKED`, ADR-013), which keeps enqueueing atomic with the business change and avoids another stateful service on free tiers. Consider Redis only if measured caching, rate limiting or queue volume justifies it.
 
-**Why event-driven processing?** Invoice extraction and notifications may be slow, retryable work and should not hold an API request open. A durable queue with idempotent workers is planned; it is not yet built.
+**Why event-driven processing?** Notifications and invoice extraction are slow, retryable work and should not hold an API request open. Notifications are built this way: the request writes an outbox row in its own transaction; a worker fans it out and delivers with backoff and dead letters, at-least-once with an idempotency key. OCR on the same pattern is next.
 
 **Why not microservices?** Current functional scope benefits more from transactional simplicity and a single deployment unit. Split only when team ownership, independent scaling, fault isolation or deployment cadence makes the operational cost worthwhile.
 

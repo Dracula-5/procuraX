@@ -98,7 +98,7 @@ Illegal transitions return `409 invalid_state_transition`.
 | Exception | How it is handled | Status |
 |---|---|---|
 | Rejected request | Reason required; remaining steps cancelled; requester can reopen and resubmit (new round) | ✅ |
-| Approval escalation | SLA due dates and overdue flags; an advisory-locked sweep reassigns overdue named steps to the next eligible manager (in-process interval or external scheduler). Notifications ⬜ (gap-closure Phase 2). | 🟡 |
+| Approval escalation | SLA due dates and overdue flags; an advisory-locked sweep reassigns overdue named steps to the next eligible manager (in-process interval or external scheduler) and notifies the new approver. | ✅ |
 | Delegation | A named approver hands one undecided step to a colleague with the same approver role (not the requester) and can revoke it before the decision; audited. Screen at *Approvals → Delegations*. Per step, not a date-range out-of-office rule. | ✅ |
 | Budget exceeded | BUD-002 routes to finance manager at submission; re-checked at final approval under lock | ✅ |
 | No budget | BUD-001 routes to finance manager | ✅ |
@@ -116,7 +116,7 @@ Illegal transitions return `409 invalid_state_transition`.
 | Module | Scope now | Status |
 |---|---|---|
 | A. Procurement request management | Create, draft, edit, submit, cancel, reopen; line items; cost centre; preferred vendor; needed-by; justification | ✅ (attachments ⬜ P6, object storage) |
-| B. Approval workflow | Dynamic chain, approve/reject with comments, SLA, audit trail, inbox | 🟡 (delegation plus schedulable audit-logged manager escalation delivered; external notifications remain) |
+| B. Approval workflow | Dynamic chain, approve/reject with comments, SLA, audit trail, inbox, delegation, escalation, notifications (in-app, e-mail, Slack/Teams; users choose channels, admins configure team webhooks) | ✅ |
 | C. Vendor management | Onboarding (pending review), profile, categories, contract status, risk, status changes with reasons, Japan invoice registration no. | ✅ (performance/spend history ⬜ P8) |
 | D. Quote management | Record vendor amount, delivery, quality, contract compliance; compare with transparent weighted baseline | 🟡 P6 |
 | E. Purchase orders | Issue from approved request with approved vendor; audited status transitions | 🟡 P6 |

@@ -37,6 +37,24 @@ Full check list for this phase: ruff, format, mypy, migrations up/down/up on the
 `oxlint`, build, `npm audit` (0), **56 frontend tests**. The first run failed only `ruff format --check`
 (one test file), fixed before commit.
 
-## Phases 2–10
+## Phase 2: notifications, outbox and worker (branch `gaps/phase-2-notifications`, notes: [prs/phase-2.md](prs/phase-2.md))
+
+| Gap | Status | Verified by | Remaining |
+|---|---|---|---|
+| Transactional outbox written with the state change (routed, escalated, delegated, rejected, PO sent, invoice mismatch, payment awaiting approval; plus approved) | ✅ | Integration tests: row written with the submission, none for a blocked one, rolls back with its transaction; one test per event source | — |
+| Worker `python -m app.worker`: SKIP LOCKED claims, backoff, dead letter after N, idempotent via delivery key; PostgreSQL only (ADR-013) | ✅ | Two concurrent workers + full replay create no duplicates; backoff → dead letter → admin retry → sent; real worker CLI run end to end | No retention job for old outbox/delivery rows |
+| In-app notifications (bell + list) | ✅ | API tests; Vitest (count, en/ja wording from stored facts, mark read) | — |
+| E-mail over SMTP, Mailpit in docker-compose | ✅ | aiosmtpd test (Japanese subject/body); end-to-end run: API → outbox → worker process → Mailpit | Not used with a real mail provider (needs your SMTP credentials) |
+| Slack and Teams incoming webhooks per tenant | ✅ | URL allow-list (SSRF cases), encrypted at rest, never returned; Slack text and Teams Adaptive Card payloads; HTTP transport against a local server | Not posted to a real Slack workspace or Teams tenant (needs your webhooks) |
+| Users choose channels | ✅ | Muted events and e-mail opt-out respected (API + Vitest) | — |
+| Worker in docker-compose.stack.yml, render.yaml (in-process or paid worker) and docs | ✅ | `docker compose config` valid; YAML parses; Render free plan has no workers, so in-process + hourly cron `--once` | A dedicated Render worker needs a paid plan (left commented) |
+| RLS test per new table as the runtime role | ✅ | All five tables: tenant-scoped, fail-closed without context, cross-tenant insert rejected; no DELETE on history | — |
+| *Found:* audit rows had NULL entity ids for created invoices / POs / knowledge versions | ✅ | UUIDs now assigned at construction; test asserts entity ids present | — |
+
+Full check list: ruff, format, mypy, migrations round trip + `alembic check`, **245 backend tests**,
+`gen_docs --check`, `check_doc_claims` (13 ADRs), `pip-audit` (none), `oxlint`, build (main bundle
+302.42 kB), `npm audit` (0), **60 frontend tests**: all passed on the first run.
+
+## Phases 3–10
 
 Not started. Rows are added when each phase begins.

@@ -118,6 +118,24 @@ policy and approval, analytics, RBAC, assistant, registration lock) and exits no
   to a minute; then the public-demo banner appears and **Create organisation** is hidden.
 - Sign in as any persona on the login page; [user_personas.md](user_personas.md) has walkthroughs.
 
+## Notifications (optional channels)
+
+In-app notifications work with no extra setup: the API runs the outbox worker on an interval
+(`PROCURAX_NOTIFICATION_WORKER_INTERVAL_SECONDS=30` in `render.yaml`), and while a free instance sleeps
+the hourly *Demo maintenance* workflow runs one batch (`python -m app.worker --once`). A dedicated
+Render worker is a paid service type; `render.yaml` has a commented block for it.
+
+E-mail and Slack/Teams stay **off** until you choose to provide credentials (they may cost money with
+some providers):
+
+| To enable | Set on the Render service |
+|---|---|
+| E-mail | `PROCURAX_EMAIL_ENABLED=true`, `PROCURAX_SMTP_HOST`, `PROCURAX_SMTP_PORT`, `PROCURAX_SMTP_USERNAME`, `PROCURAX_SMTP_PASSWORD`, `PROCURAX_SMTP_STARTTLS=true`, `PROCURAX_EMAIL_FROM` (a sender your provider has verified) |
+| Slack / Teams | `PROCURAX_WEBHOOKS_ENABLED=true` and `PROCURAX_DATA_ENCRYPTION_KEY` (32+ random characters; the blueprint generates one). Each tenant admin then pastes an incoming-webhook URL under *Notifications → Team channels* |
+
+The public demo's personas use `example.com` addresses, which cannot receive mail. Failed deliveries are
+retried with backoff and then listed under *Notifications → Failed deliveries* for the org admin.
+
 ## If something does not work
 
 | Symptom | Likely cause | Fix |

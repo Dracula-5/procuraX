@@ -20,5 +20,14 @@ services:
       timeout: 3s
       retries: 20
 
+  # Local SMTP sink for notification e-mail (gap-closure Phase 2). Nothing leaves the machine.
+  # Web UI: http://localhost:8025 · SMTP: localhost:1025 (PROCURAX_SMTP_HOST/PORT defaults).
+  mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: procurax-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
   procurax_pg:
