@@ -4,6 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.domain.catalog import Locale
 from app.domain.rbac import Role
 
 _PASSWORD_HINT = "at least 10 characters, including a letter and a digit"  # noqa: S105
@@ -73,6 +74,15 @@ class MeOut(BaseModel):
     roles: list[str]
     permissions: list[str]
     organization: OrgOut
+    locale: Locale | None = None
+
+
+class PreferencesUpdate(BaseModel):
+    """The caller's own settings. `locale: null` clears the choice (the browser language applies)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    locale: Locale | None
 
 
 class TokenResponse(BaseModel):
