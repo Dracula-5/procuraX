@@ -176,9 +176,10 @@ Checks (the same as CI):
 cd backend
 uv run ruff check app tests alembic && uv run ruff format --check app tests alembic
 uv run mypy app
+uv run alembic upgrade head && uv run alembic downgrade base && uv run alembic upgrade head && uv run alembic check
 uv run pytest --cov                                    # needs the docker-compose database
-uv run alembic check
 uv run python -m app.scripts.gen_docs --check          # generated docs match the code
+uv run python -m app.scripts.check_doc_claims          # role/permission/rule/ADR counts in docs match the code
 cd ../frontend && npx oxlint src && npm run build
 ```
 
