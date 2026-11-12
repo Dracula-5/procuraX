@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.modules.audit.router import router as audit_router
 from app.modules.identity.router import auth_router, org_router, users_router
+from app.modules.notifications.router import router as notifications_router
 from app.modules.organization.router import router as structure_router
 from app.modules.procurement.assistant import router as assistant_router
 from app.modules.procurement.decision_support import router as decision_support_router
@@ -28,5 +29,6 @@ for r in (
     delegation_router,
     policy_router,
     audit_router,
+    notifications_router,
 ):
     api_router.include_router(r)

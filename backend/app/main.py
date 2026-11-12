@@ -15,6 +15,7 @@ from app.core.config import get_settings
 from app.core.db import dispose_engine, get_engine
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
+from app.modules.notifications.worker import worker_loop
 from app.modules.procurement.escalations import sla_sweep_loop
 
 API_DESCRIPTION = """
@@ -30,14 +31,18 @@ Purchase-to-pay workflow with deterministic policy enforcement, multi-tenant iso
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
-    sweep: asyncio.Task[None] | None = None
-    if settings.sla_escalation_interval_seconds > 0 and settings.env != "test":
-        sweep = asyncio.create_task(sla_sweep_loop(settings.sla_escalation_interval_seconds))
+    tasks: list[asyncio.Task[None]] = []
+    if settings.env != "test":
+        if settings.sla_escalation_interval_seconds > 0:
+            tasks.append(asyncio.create_task(sla_sweep_loop(settings.sla_escalation_interval_seconds)))
+        # Free hosting without a separate worker process: deliver notifications from the API instead.
+        if settings.notification_worker_interval_seconds > 0:
+            tasks.append(asyncio.create_task(worker_loop(settings.notification_worker_interval_seconds)))
     yield
-    if sweep is not None:
-        sweep.cancel()
+    for task in tasks:
+        task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await sweep
+            await task
     await dispose_engine()
 
 
