@@ -94,7 +94,23 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
   return payload as T;
 }
 
+/** A file download that needs the Authorization header (so it cannot be a plain link). */
+async function requestBlob(path: string, query?: Query): Promise<Blob> {
+  const headers: Record<string, string> = {};
+  const token = tokenStore.get();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(buildUrl(path, query), { headers });
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null);
+    const err = payload?.error ?? {};
+    if (res.status === 401 && token) onUnauthorized?.();
+    throw new ApiError(res.status, err.code ?? "http_error", err.message ?? `Request failed (${res.status})`, err.details, payload?.request_id ?? null);
+  }
+  return res.blob();
+}
+
 export const api = {
+  blob: (path: string, query?: Query) => requestBlob(path, query),
   get: <T>(path: string, query?: Query) => request<T>("GET", path, undefined, query),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body ?? {}),

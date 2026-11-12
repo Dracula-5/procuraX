@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/useAuth";
+import { InvoiceFiles } from "../components/InvoiceFiles";
 import { Button, Card, EmptyState, ErrorNotice, Field, Input, PageHeader, Select, Spinner, Table, Td, Th } from "../components/ui";
 import { api } from "../lib/api";
 import { date, money, percent } from "../lib/format";
@@ -220,6 +221,7 @@ export function PurchaseToPay() {
             </Table>
           )}
         </Card>
+        <InvoiceFiles invoices={invoices.data ?? []} canUpload={can("vendor:manage")} />
         <Card title={t("p2p.payments.title")} className="xl:col-span-2">
           {can("payment:approve") && payments.data?.some((p) => p.status === "approved") && (
             <div className="mb-3 flex flex-wrap items-center gap-3">

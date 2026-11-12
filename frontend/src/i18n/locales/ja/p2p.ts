@@ -54,6 +54,17 @@ export const p2p: typeof enP2p = {
     rejectException: "例外を却下",
     requestPayment: "支払承認を依頼",
   },
+  files: {
+    title: "請求書ファイル",
+    intro: "取引先の請求書（PDF・PNG・JPEG・TIFF、18 MiB・10 ページまで）を添付します。ファイルは SHA-256 とともに一度だけ保存され、スキャンが有効な場合はウイルススキャンされ、添付は取り消せません。",
+    file: "ファイル",
+    chooseFile: "先にファイルを選択してください。",
+    attach: "添付",
+    none: "この請求書に添付されたファイルはありません",
+    meta: "{{size}} KB・{{pages}} ページ・保存期限 {{retain}}",
+    download: "{{name}} をダウンロード",
+    scan: { pending: "スキャン待ち", clean: "スキャン済み：問題なし", infected: "ウイルス検出", not_scanned: "未スキャン" },
+  },
   payments: {
     title: "支払承認",
     export: "総合振込データを出力（全銀）",

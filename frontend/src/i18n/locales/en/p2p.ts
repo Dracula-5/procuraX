@@ -52,6 +52,17 @@ export const p2p = {
     rejectException: "Reject exception",
     requestPayment: "Request payment approval",
   },
+  files: {
+    title: "Invoice files",
+    intro: "Attach the supplier's invoice (PDF, PNG, JPEG or TIFF, up to 18 MiB and 10 pages). Files are stored once with their SHA-256, virus-scanned when scanning is enabled, and stay attached permanently.",
+    file: "File",
+    chooseFile: "Choose a file first.",
+    attach: "Attach",
+    none: "No files attached to this invoice",
+    meta: "{{size}} KB · {{pages}} page(s) · keep until {{retain}}",
+    download: "Download {{name}}",
+    scan: { pending: "scan pending", clean: "scanned: clean", infected: "infected", not_scanned: "not scanned" },
+  },
   payments: {
     title: "Payment approvals",
     export: "Export bank transfer file (Zengin)",
