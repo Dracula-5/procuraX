@@ -78,6 +78,12 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_column("invoices", "line_match_details")
     op.drop_constraint(op.f("ck_invoices_valid_match_status"), "invoices", type_="check")
+    # Finance exception decisions do not exist before this revision; such invoices go back to the
+    # human review state so the narrower constraint holds on a populated database.
+    op.execute(
+        "UPDATE invoices SET match_status = 'requires_review' "
+        "WHERE match_status IN ('exception_approved', 'exception_rejected')"
+    )
     op.create_check_constraint(
         "valid_match_status",
         "invoices",
