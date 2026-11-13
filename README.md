@@ -54,10 +54,12 @@ The controls exist on paper but are not operationalised.
 | | Current state | Target state (ProcuraX) | Built? |
 |---|---|---|---|
 | Intake | E-mail / Excel | One digital request with line items, cost centre, justification | ✅ |
-| Policy | Thresholds applied from memory | Deterministic engine: 21 rules, versioned, every decision cites rule IDs | ✅ |
+| Policy | Thresholds applied from memory | Deterministic engine: 22 rules, versioned, every decision cites rule IDs | ✅ |
 | Approvals | Ringi / e-mail chain | Chain from the org structure and role pools, SLA, segregation of duties | ✅ |
 | Budget | Spreadsheet, checked late | Checked at submit and re-checked under a lock at final approval | ✅ |
-| Vendors | Buyer's inbox | Vendor master with onboarding control, risk, contract, invoice registration no. | ✅ |
+| Vendors | Buyer's inbox | Vendor master with onboarding control, risk, invoice registration no.; contracts with dates, categories, value cap (CON-001), signed file and expiry reminders | ✅ |
+| Currencies | Converted by hand, if at all | Requests in other currencies converted at submission with a recorded rate (manual or ECB); policy and budgets in the base currency | ✅ (ECB adapter tested on a fixture, not live) |
+| Ledger | Re-keyed into the ERP | Balanced journal entries (CSV / JSON) for matched and paid invoices, each exported once | ✅ file export; no ERP API push |
 | Audit | Reconstructed by hand | Append-only trail, enforced by database grants | ✅ |
 | PO → receipt → invoice → 3-way match | ERP keying, visual checks | Supplier line prices flow to PO lines; cumulative line match (no double billing); consumption tax per rate; registration number check digit, vendor master and NTA registry (optional); Peppol / JP PINT UBL import; finance exception decision | 🟡 P6–P7; Zengin export done; registry lookup untested against the live NTA API; Peppol sending out of scope |
 | Spend visibility | Month-end exports | Live category/department/vendor spend, 12-month trend, cycle percentiles, invoice match summaries and current-FY budget utilization by cost centre | 🟡 P8 partial; savings opportunities and anomaly review remain |
@@ -92,7 +94,7 @@ What makes it enterprise-grade rather than CRUD:
 - **Least privilege in the database.** The app role cannot UPDATE or DELETE audit rows or edit
   the RBAC catalogue.
 
-→ [System design & 15 ADRs](docs/system_design.md) · [Dataset strategy](docs/datasets.md) · [Local verification](docs/local_verification.md) ·
+→ [System design & 18 ADRs](docs/system_design.md) · [Dataset strategy](docs/datasets.md) · [Local verification](docs/local_verification.md) ·
 [Product spec](docs/product_spec.md) ·
 [Free deployment](docs/deployment.md) · [Illustrative personas](docs/user_personas.md) ·
 [RBAC matrix (generated)](docs/generated/rbac_matrix.md) ·
@@ -127,9 +129,9 @@ Current implementation verification:
 
 | What | Result |
 |---|---|
-| Backend API and domain tests | 294 passing (gap-closure Phase 4; plus 1 opt-in real-ClamAV test), including tenant isolation, RLS, concurrency, notification workers, invoice-file immutability, NTA registry (mocked) and UBL import |
-| Frontend production build | Passed (`tsc -b` + Vite). Main bundle 298.17 kB JS (93.20 kB gzip) with signed-in pages split into route chunks and Japanese strings in a 44.88 kB chunk loaded on demand; 24.11 kB CSS |
-| Frontend tests | 60 passing (Vitest + Testing Library): translations, formatting, error mapping, permission guard, language switcher, bank-account form, delegation screen, notifications |
+| Backend API and domain tests | 324 passing (gap-closure Phase 5; plus 1 opt-in real-ClamAV test), including tenant isolation, RLS, concurrency, notification workers, invoice-file immutability, NTA registry (mocked), UBL import, contracts, exchange rates and the journal export |
+| Frontend production build | Passed (`tsc -b` + Vite). Main bundle 304.98 kB JS (95.15 kB gzip) with signed-in pages split into route chunks and Japanese strings in a 59.02 kB chunk loaded on demand; 27.04 kB CSS |
+| Frontend tests | 66 passing (Vitest + Testing Library): translations, formatting, error mapping, permission guard, language switcher, bank-account form, delegation screen, notifications, contracts, exchange rates, journal export |
 | Backend static checks | Ruff, ruff format and mypy passed |
 | API/database migration | Empty database → head → base → head and `alembic check`: no schema drift |
 | Invoice OCR | 40 rendered synthetic invoices per condition, held-out seed: see [benchmark report](reports/final_benchmark.md#invoice-ocr-end-to-end) |

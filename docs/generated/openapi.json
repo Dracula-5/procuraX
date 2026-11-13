@@ -4700,6 +4700,845 @@
         }
       }
     },
+    "/api/v1/contracts": {
+      "get": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "List Contracts",
+        "operationId": "list_contracts_api_v1_contracts_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "vendor_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Vendor Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ContractState"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContractOut"
+                  },
+                  "title": "Response List Contracts Api V1 Contracts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Create Contract",
+        "operationId": "create_contract_api_v1_contracts_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{contract_id}": {
+      "get": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Get Contract",
+        "operationId": "get_contract_api_v1_contracts__contract_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Update Contract",
+        "operationId": "update_contract_api_v1_contracts__contract_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{contract_id}/activate": {
+      "post": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Activate Contract",
+        "operationId": "activate_contract_api_v1_contracts__contract_id__activate_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{contract_id}/terminate": {
+      "post": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Terminate Contract",
+        "operationId": "terminate_contract_api_v1_contracts__contract_id__terminate_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerminateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{contract_id}/document": {
+      "post": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Upload Contract Document",
+        "description": "Attach the signed contract (PDF/PNG/JPEG, same checks as invoice files).\n\nA draft's file can be replaced; once the contract is active its file is fixed (it can be attached\nif missing). With ClamAV on, the file is scanned before it is stored and refused if infected.",
+        "operationId": "upload_contract_document_api_v1_contracts__contract_id__document_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContractDocumentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Download Contract Document",
+        "operationId": "download_contract_document_api_v1_contracts__contract_id__document_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Contract Id"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "redirect",
+                "link"
+              ],
+              "type": "string",
+              "default": "redirect",
+              "title": "Mode"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/fx/rates": {
+      "get": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "List Rates",
+        "operationId": "list_rates_api_v1_fx_rates_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Set Rate",
+        "description": "Record (or correct) the manual rate for a day: 1 unit of `currency` = `rate` units of base.",
+        "operationId": "set_rate_api_v1_fx_rates_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RateOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/fx/rates/refresh": {
+      "post": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Refresh Rates",
+        "description": "Fetch today's ECB reference rates (PROCURAX_FX_ECB_ENABLED) for every supported currency.",
+        "operationId": "refresh_rates_api_v1_fx_rates_refresh_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ledger/settings": {
+      "get": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Get Ledger",
+        "operationId": "get_ledger_api_v1_ledger_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Set Ledger",
+        "operationId": "set_ledger_api_v1_ledger_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LedgerSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ledger/mappings": {
+      "put": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Set Mappings",
+        "description": "Replace the expense-account mappings (each row narrows by category, cost centre or both).",
+        "operationId": "set_mappings_api_v1_ledger_mappings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "items": {
+                  "$ref": "#/components/schemas/MappingIn"
+                },
+                "type": "array",
+                "title": "Data"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal-exports/pending": {
+      "get": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Pending Journal",
+        "operationId": "pending_journal_api_v1_journal_exports_pending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalPendingOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal-exports": {
+      "get": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "List Journal Exports",
+        "operationId": "list_journal_exports_api_v1_journal_exports_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/JournalExportOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Journal Exports Api V1 Journal Exports Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Create Journal Export",
+        "operationId": "create_journal_export_api_v1_journal_exports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JournalExportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalExportFileOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/journal-exports/{export_id}/download": {
+      "get": {
+        "tags": [
+          "finance"
+        ],
+        "summary": "Download Journal Export",
+        "operationId": "download_journal_export_api_v1_journal_exports__export_id__download_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Export Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/meta": {
       "get": {
         "tags": [
@@ -5518,7 +6357,7 @@
               "type": "string"
             },
             "type": "array",
-            "maxItems": 8,
+            "maxItems": 9,
             "title": "Events"
           },
           "enabled": {
@@ -5603,6 +6442,274 @@
         ],
         "title": "ChannelsOut"
       },
+      "ContractDocumentIn": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename"
+          },
+          "content_base64": {
+            "type": "string",
+            "maxLength": 25165832,
+            "minLength": 4,
+            "title": "Content Base64"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "content_base64"
+        ],
+        "title": "ContractDocumentIn"
+      },
+      "ContractDocumentOut": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "mime_type": {
+            "type": "string",
+            "title": "Mime Type"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "scan_status": {
+            "type": "string",
+            "title": "Scan Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "mime_type",
+          "sha256",
+          "scan_status"
+        ],
+        "title": "ContractDocumentOut"
+      },
+      "ContractIn": {
+        "properties": {
+          "vendor_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Vendor Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Title"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/SpendCategory"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Categories"
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Starts On"
+          },
+          "ends_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Ends On"
+          },
+          "value_cap": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,19}0*$)\\d{0,16}\\.\\d{0,2}0*$)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Cap"
+          },
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vendor_id",
+          "title",
+          "starts_on",
+          "ends_on",
+          "currency"
+        ],
+        "title": "ContractIn"
+      },
+      "ContractOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "vendor_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Vendor Id"
+          },
+          "vendor_name": {
+            "type": "string",
+            "title": "Vendor Name"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Starts On"
+          },
+          "ends_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Ends On"
+          },
+          "value_cap": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Cap"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ContractState"
+          },
+          "terminated_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terminated Reason"
+          },
+          "committed": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Committed"
+          },
+          "base_currency": {
+            "type": "string",
+            "title": "Base Currency"
+          },
+          "document": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContractDocumentOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiry_reminded_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiry Reminded At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "allowed_actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allowed Actions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "vendor_id",
+          "vendor_name",
+          "title",
+          "categories",
+          "starts_on",
+          "ends_on",
+          "value_cap",
+          "currency",
+          "status",
+          "terminated_reason",
+          "committed",
+          "base_currency",
+          "document",
+          "expiry_reminded_at",
+          "created_at",
+          "updated_at",
+          "allowed_actions"
+        ],
+        "title": "ContractOut"
+      },
+      "ContractState": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "active",
+          "expired",
+          "terminated"
+        ],
+        "title": "ContractState"
+      },
       "ContractStatus": {
         "type": "string",
         "enum": [
@@ -5611,6 +6718,93 @@
           "expired"
         ],
         "title": "ContractStatus"
+      },
+      "ContractUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "categories": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SpendCategory"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categories"
+          },
+          "starts_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts On"
+          },
+          "ends_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends On"
+          },
+          "value_cap": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,19}0*$)\\d{0,16}\\.\\d{0,2}0*$)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Cap"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 3,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          }
+        },
+        "type": "object",
+        "title": "ContractUpdate"
       },
       "CostCenterCreate": {
         "properties": {
@@ -6845,6 +8039,176 @@
         ],
         "title": "InvoiceOCRIn"
       },
+      "JournalExportFileOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "invoice_count": {
+            "type": "integer",
+            "title": "Invoice Count"
+          },
+          "payment_count": {
+            "type": "integer",
+            "title": "Payment Count"
+          },
+          "entry_count": {
+            "type": "integer",
+            "title": "Entry Count"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "created_by_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "content_base64": {
+            "type": "string",
+            "title": "Content Base64"
+          },
+          "more_pending": {
+            "type": "boolean",
+            "title": "More Pending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reference",
+          "format",
+          "filename",
+          "invoice_count",
+          "payment_count",
+          "entry_count",
+          "sha256",
+          "created_by_id",
+          "created_at",
+          "content_base64",
+          "more_pending"
+        ],
+        "title": "JournalExportFileOut"
+      },
+      "JournalExportIn": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "csv",
+              "json"
+            ],
+            "title": "Format",
+            "default": "csv"
+          }
+        },
+        "type": "object",
+        "title": "JournalExportIn"
+      },
+      "JournalExportOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "invoice_count": {
+            "type": "integer",
+            "title": "Invoice Count"
+          },
+          "payment_count": {
+            "type": "integer",
+            "title": "Payment Count"
+          },
+          "entry_count": {
+            "type": "integer",
+            "title": "Entry Count"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "created_by_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reference",
+          "format",
+          "filename",
+          "invoice_count",
+          "payment_count",
+          "entry_count",
+          "sha256",
+          "created_by_id",
+          "created_at"
+        ],
+        "title": "JournalExportOut"
+      },
+      "JournalPendingOut": {
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "title": "Configured"
+          },
+          "invoices": {
+            "type": "integer",
+            "title": "Invoices"
+          },
+          "payments": {
+            "type": "integer",
+            "title": "Payments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "configured",
+          "invoices",
+          "payments"
+        ],
+        "title": "JournalPendingOut"
+      },
       "KnowledgeAnswer": {
         "properties": {
           "answer": {
@@ -6995,6 +8359,73 @@
         ],
         "title": "KnowledgeQueryIn"
       },
+      "LedgerOut": {
+        "properties": {
+          "settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LedgerSettingsIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mappings": {
+            "items": {
+              "$ref": "#/components/schemas/MappingOut"
+            },
+            "type": "array",
+            "title": "Mappings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "settings",
+          "mappings"
+        ],
+        "title": "LedgerOut"
+      },
+      "LedgerSettingsIn": {
+        "properties": {
+          "payable_account": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "pattern": "^[0-9A-Za-z][0-9A-Za-z._\\-/ ]*$",
+            "title": "Payable Account"
+          },
+          "input_tax_account": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "pattern": "^[0-9A-Za-z][0-9A-Za-z._\\-/ ]*$",
+            "title": "Input Tax Account"
+          },
+          "bank_account": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "pattern": "^[0-9A-Za-z][0-9A-Za-z._\\-/ ]*$",
+            "title": "Bank Account"
+          },
+          "default_expense_account": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "pattern": "^[0-9A-Za-z][0-9A-Za-z._\\-/ ]*$",
+            "title": "Default Expense Account"
+          }
+        },
+        "type": "object",
+        "required": [
+          "payable_account",
+          "input_tax_account",
+          "bank_account",
+          "default_expense_account"
+        ],
+        "title": "LedgerSettingsIn"
+      },
       "Locale": {
         "type": "string",
         "enum": [
@@ -7023,6 +8454,100 @@
           "password"
         ],
         "title": "LoginRequest"
+      },
+      "MappingIn": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpendCategory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_center_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Center Id"
+          },
+          "expense_account": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "pattern": "^[0-9A-Za-z][0-9A-Za-z._\\-/ ]*$",
+            "title": "Expense Account"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expense_account"
+        ],
+        "title": "MappingIn"
+      },
+      "MappingOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "cost_center_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Center Id"
+          },
+          "cost_center_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Center Code"
+          },
+          "expense_account": {
+            "type": "string",
+            "title": "Expense Account"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "cost_center_id",
+          "cost_center_code",
+          "expense_account"
+        ],
+        "title": "MappingOut"
       },
       "MeOut": {
         "properties": {
@@ -7363,6 +8888,19 @@
             "title": "Is Emergency",
             "default": false
           },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 3,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/PRItemIn"
@@ -7408,6 +8946,18 @@
             "type": "string",
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Estimated Total"
+          },
+          "base_amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Amount"
           },
           "requester_id": {
             "type": "string",
@@ -7543,6 +9093,64 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "fx_rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Rate"
+          },
+          "fx_rate_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Rate On"
+          },
+          "fx_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx Source"
+          },
+          "contract_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Id"
+          },
+          "contract_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Number"
           },
           "justification": {
             "type": "string",
@@ -7862,6 +9470,18 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Estimated Total"
           },
+          "base_amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Amount"
+          },
           "requester_id": {
             "type": "string",
             "format": "uuid",
@@ -8108,6 +9728,19 @@
             ],
             "title": "Is Emergency"
           },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 3,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
           "items": {
             "anyOf": [
               {
@@ -8313,6 +9946,11 @@
             "minimum": 1.0,
             "title": "Approval Sla Hours",
             "default": 48
+          },
+          "route_contract_cap_overrun": {
+            "type": "boolean",
+            "title": "Route Contract Cap Overrun",
+            "default": true
           }
         },
         "additionalProperties": false,
@@ -8384,6 +10022,11 @@
             "minimum": 1.0,
             "title": "Approval Sla Hours",
             "default": 48
+          },
+          "route_contract_cap_overrun": {
+            "type": "boolean",
+            "title": "Route Contract Cap Overrun",
+            "default": true
           }
         },
         "additionalProperties": false,
@@ -8533,7 +10176,7 @@
               "type": "string"
             },
             "type": "array",
-            "maxItems": 8,
+            "maxItems": 9,
             "title": "Muted Events"
           }
         },
@@ -8555,7 +10198,7 @@
               "type": "string"
             },
             "type": "array",
-            "maxItems": 8,
+            "maxItems": 9,
             "title": "Muted Events"
           },
           "email_available": {
@@ -8716,6 +10359,125 @@
         ],
         "title": "QuoteLineIn"
       },
+      "RateIn": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,19}0*$)\\d{0,10}\\.\\d{0,8}0*$)"
+              }
+            ],
+            "title": "Rate"
+          },
+          "valid_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "rate",
+          "valid_on"
+        ],
+        "title": "RateIn"
+      },
+      "RateOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "rate": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Rate"
+          },
+          "valid_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid On"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "currency",
+          "rate",
+          "valid_on",
+          "source",
+          "created_at"
+        ],
+        "title": "RateOut"
+      },
+      "RatesOut": {
+        "properties": {
+          "base_currency": {
+            "type": "string",
+            "title": "Base Currency"
+          },
+          "supported_currencies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Supported Currencies"
+          },
+          "ecb_enabled": {
+            "type": "boolean",
+            "title": "Ecb Enabled"
+          },
+          "latest": {
+            "items": {
+              "$ref": "#/components/schemas/RateOut"
+            },
+            "type": "array",
+            "title": "Latest"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/RateOut"
+            },
+            "type": "array",
+            "title": "History"
+          }
+        },
+        "type": "object",
+        "required": [
+          "base_currency",
+          "supported_currencies",
+          "ecb_enabled",
+          "latest",
+          "history"
+        ],
+        "title": "RatesOut"
+      },
       "ReceiptIn": {
         "properties": {
           "received_on": {
@@ -8787,6 +10549,33 @@
           "quantity"
         ],
         "title": "ReceiptIn"
+      },
+      "RefreshOut": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "reference_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Reference Date"
+          },
+          "updated": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Updated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "reference_date",
+          "updated"
+        ],
+        "title": "RefreshOut"
       },
       "RegisterRequest": {
         "properties": {
@@ -9040,6 +10829,21 @@
         ],
         "title": "SpendCategory",
         "description": "Top-level spend taxonomy. Also the label set for the spend-classification model (P9)."
+      },
+      "TerminateIn": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "TerminateIn"
       },
       "TokenResponse": {
         "properties": {

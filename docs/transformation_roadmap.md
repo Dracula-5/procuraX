@@ -68,7 +68,7 @@ The per-gap detail, including how each item was verified, is in [`reports/gap_cl
 | 2 | Transactional outbox, PostgreSQL worker, in-app / e-mail / Slack / Teams notifications | ✅ (e-mail verified end to end with Mailpit; Slack/Teams posting verified with a local HTTP receiver, not a real workspace) |
 | 3 | Invoice file storage (S3-compatible), documents table, optional ClamAV scan | ✅ (verified against RustFS and a real ClamAV 1.4; not against AWS S3 or R2, which need your account) |
 | 4 | NTA registry lookup adapter; Peppol / JP PINT UBL import | 🟡 Built and tested against a local mock of the Web-API; the real NTA API needs your application ID. UBL import ✅; Peppol network sending out of scope |
-| 5 | Contracts, multi-currency, ERP journal export | ⬜ |
+| 5 | Contracts, multi-currency, ERP journal export | ✅ (ECB rates parsed from a fixture, not fetched live; journal is a file for a person to import, no ERP API push; contract files are scanned at upload only when ClamAV is on) |
 | 6 | Refresh cookies, CSRF, TOTP MFA, OIDC SSO, shared rate limiting, threat model | ⬜ |
 | 7 | Prometheus metrics, tracing flag, dashboards, backups and restore drill, runbook | ⬜ |
 | 8 | AI gateway, advisory flags, hybrid retrieval, cited LLM answers, SQL guard, Japanese OCR set | ⬜ |

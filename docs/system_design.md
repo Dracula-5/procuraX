@@ -133,6 +133,9 @@ erDiagram
     users ||--o{ purchase_requests : raises
     cost_centers ||--o{ purchase_requests : charged
     vendors |o--o{ purchase_requests : preferred
+    vendors ||--o{ contracts : "framework agreements"
+    contracts |o--o{ purchase_requests : "covered at submission"
+    organizations ||--o{ exchange_rates : "dated rates"
     purchase_requests ||--|{ purchase_request_items : contains
     purchase_requests ||--o{ approvals : "steps per round"
     organizations ||--o{ audit_logs : records
@@ -176,6 +179,13 @@ identity immutable, the link one-time, and linked rows undeletable (also for the
 an explicit transaction-local purge flag used by the fictional demo reset); the runtime role has no
 DELETE privilege.
 
+Contracts, currencies and ledger *(gap-closure Phase 5)*: `contracts` (lifecycle, categories, dates,
+value cap in its own currency, signed file in object storage), `purchase_requests.contract_id` and the rate
+snapshot (`fx_rate`, `fx_rate_on`, `fx_source`, `base_amount`), `exchange_rates` (dated, per source),
+`gl_account_mappings`, `journal_exports` (insert-only, file and SHA-256 kept) with
+`invoices` / `payments.journal_export_id` markers, and `organizations.ledger_settings`. All tenant tables
+have forced RLS.
+
 Planned tables: invoice line items, `spend_transactions`, `ai_predictions`, `feedback`.
 
 ## 7. AI architecture *(offline baselines delivered; full AI pipeline planned)*
@@ -206,7 +216,8 @@ No AI result is connected to automatic approval or payment.
 
 | Integration | Pattern | Notes |
 |---|---|---|
-| ERP (PO, vendor master, payments) | Outbound events + batch export (CSV/SFTP), then REST API | Platform works standalone if the ERP is down; outbox table for retries |
+| ERP (journal) | Batch file export of balanced journal entries (CSV / JSON), imported by a person | **Built:** matched invoices and paid invoices, each exported once (ADR-018); account mapping per category / cost centre. Pushing to an ERP API, and PO / vendor master sync, are not built |
+| Exchange rates | ECB euro reference rates (free, no key), off unless `PROCURAX_FX_ECB_ENABLED`; manual rates otherwise | **Built:** cross rates to the tenant's base currency, snapshotted on each request at submission (ADR-016). Parsed from a fixture in tests; not fetched live in CI |
 | Identity provider | OIDC SSO | Replaces passwords for enterprise tenants |
 | E-mail | SMTP from the outbox worker (Mailpit locally); off unless `PROCURAX_EMAIL_ENABLED` | **Built:** approval, escalation, delegation, rejection, PO, invoice-mismatch and payment events in the recipient's language. Invitation e-mails are not sent yet |
 | Team chat | Slack / Microsoft Teams incoming webhooks per tenant; off unless `PROCURAX_WEBHOOKS_ENABLED` | **Built:** the tenant admin picks events; URL host allow-listed and encrypted at rest |
@@ -427,3 +438,40 @@ records why. UBL invoices are converted into the existing invoice input and run 
 deterministic match; no separate path can approve them. *Consequences:* no new way to auto-approve
 anything; one more external dependency behind a flag; full JP PINT Schematron validation is left to a
 certified access point.
+
+**ADR-016 Multi-currency by snapshot: convert once at submission, decide in the base currency.**
+*Context:* VAL-004 used to block every request outside the tenant's currency; thresholds, budgets and
+analytics are all in the base currency. *Decision:* tenants keep dated rates (`exchange_rates`: manual, or
+ECB euro reference rates behind `PROCURAX_FX_ECB_ENABLED`; on the same day a manual rate wins). At
+submission the latest rate on or before the tenant's local date is copied onto the request (`fx_rate`,
+`fx_rate_on`, `fx_source`) with `base_amount`; policy, budget checks and recheck, contract caps and
+analytics use `base_amount`. VAL-004 now blocks only when no rate exists. POs, invoices and payments stay
+in the transaction currency. *Alternatives:* convert at read time (results would drift when rates change,
+and an approval could no longer be reproduced); a live rate API on every request (an external call in the
+approval path). *Consequences:* a decision is reproducible from the request row alone; correcting a rate
+does not touch submitted requests; a request resubmitted later takes the new rate. Revaluation and
+realised FX gains/losses are the ERP's job.
+
+**ADR-017 Contracts are records with a lifecycle; the covering contract is snapshotted on the request.**
+*Context:* off-contract buying was judged from a single `vendors.contract_status` field, with no dates,
+categories or value cap. *Decision:* a `contracts` table (draft → active → expired / terminated through a
+pure state machine; expiry by the worker's sweep, not a person). The policy fact "vendor has an active
+contract" comes from an active contract covering the vendor, category and date; the old vendor field
+remains the fallback only for vendors with no contract records. At submission the covering contract is
+written to `purchase_requests.contract_id`, and the cap check (CON-001, route to procurement) sums
+`base_amount` of requests in approval or approved under that contract. *Alternatives:* derive coverage at
+query time from dates (cap usage would shift when a contract is edited or a second one starts).
+*Consequences:* cap usage is explainable per request; caps in a currency without a rate route to
+procurement instead of passing silently; reminders 30 days before the end go through the outbox once
+(`expiry_reminded_at`).
+
+**ADR-018 ERP integration starts as a once-only journal file, not an API push.**
+*Context:* every ERP has its own posting API and approval rules; finance needs entries it can review before
+posting. *Decision:* ProcuraX builds balanced journal entries (invoice: expense + input tax / payables;
+payment after the bank file: payables / bank) from tenant ledger settings and category / cost-centre
+mappings, as CSV or JSON. A batch locks the organisation row and the included documents (`FOR UPDATE`),
+marks them with the batch id and stores the file with its SHA-256 in `journal_exports` (insert-only for
+the runtime role), so a document is never exported twice and a file can be downloaded again unchanged.
+*Alternatives:* push to an ERP API through the outbox (vendor-specific and needs credentials; possible
+later on the same markers); files in object storage (bounded batches of at most 2,000 entries keep the
+row small). *Consequences:* a human imports and posts; nothing in ProcuraX writes to a ledger.

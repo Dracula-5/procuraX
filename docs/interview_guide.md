@@ -46,6 +46,10 @@ Use this as a discussion guide, not a script. The client case is fictional. Sepa
 
 **How handle retries/idempotency?** Persist a client or event idempotency key with a unique constraint, make handlers safe to replay, use bounded exponential backoff, and route permanent failures to an operator queue.
 
+**How do multi-currency requests work?** The rate is copied onto the request when it is submitted, together with the converted base-currency amount, and every threshold, budget and contract cap uses that amount. A decision can therefore be reproduced from the request row alone, and correcting a rate later does not change approvals already made. Without a rate the request is blocked (VAL-004) rather than guessed. See ADR-016.
+
+**How does ProcuraX hand accounting to the ERP?** As a file, on purpose: balanced journal entries for matched and paid invoices, CSV or JSON, which finance imports and posts. Each export locks and marks the documents it includes, so nothing is exported twice, and the file is kept with its hash. An API push can reuse the same markers later. See ADR-018.
+
 **How is the Japanese UI built?** The API stays language-neutral (error codes and a `reason` code on business-rule refusals) and the SPA owns the wording through i18next. Keys are typed, so a missing translation fails the build. Rule explanations are rebuilt from each rule hit's structured evidence rather than translating stored English sentences, and dates, numbers and ¥ amounts use `Intl` with the ja-JP locale. The language follows the user across devices (`users.locale`). See ADR-012.
 
 ## AI

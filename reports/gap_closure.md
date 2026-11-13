@@ -87,6 +87,26 @@ Full check list: **294 backend tests passed, 1 skipped** (opt-in real ClamAV), *
 migrations round trip + `alembic check`, `gen_docs`, `check_doc_claims` (15 ADRs), `pip-audit`,
 `npm audit`, `oxlint`, build: all passed on the first run.
 
-## Phases 5–10
+## Phase 5: contracts, multi-currency, ERP journal export (branch `gaps/phase-5-contracts-fx-erp`, notes: [prs/phase-5.md](prs/phase-5.md))
+
+| Gap | Status | Verified by | Remaining |
+|---|---|---|---|
+| Contracts table with lifecycle (draft → active → expired / terminated), value cap, signed file | ✅ | Unit: state machine and coverage; API: lifecycle, permissions, edit lock, file checks and lock after activation; RLS test as the runtime role | No date-effective amendments (terminate and replace) |
+| Policy uses contract records (VEN-004) with the vendor field as fallback; cap overrun routes procurement (CON-001) | ✅ | Unit: CON-001 within / over / no cap / cap currency without a rate / switched off; API: draft ignored, active covers, overrun routed, terminated → expired | — |
+| Expiry and renewal reminders through the worker | ✅ | API: sweep sends one `contract.expiring` event (en/ja templates) and expires after the end date; SKIP LOCKED claim | — |
+| Multi-currency: rates table, rate + base amount snapshotted at submission, VAL-004 only without a rate | ✅ | Unit: rate choice, manual precedence, rounding; API: blocked without a rate, ¥150,250 from $1,000 at 150.25, correction does not move the snapshot | — |
+| Budgets, policy, analytics on base amounts | ✅ | API: budget pending in base currency; existing analytics and budget tests pass on `base_amount` (backfilled by migration 0018) | — |
+| ECB reference-rate adapter (free, no key), off by default | 🟡 | Parser tested on a fixture in the ECB file format (and against hostile XML); refresh endpoint tested with the fetch replaced by the fixture | **Not fetched live** from the ECB; nothing refreshes automatically |
+| ERP journal export: balanced entries, CSV / JSON, each document once | ✅ | Unit: entries balanced, mapping precedence, tax line, payment entry, CSV injection, JSON; API: export, second export refused, byte-identical download; `journal_exports` insert-only for the runtime role | File only; pushing to an ERP API (via the outbox) is not built |
+| RLS test per new table | ✅ | `contracts`, `exchange_rates`, `gl_account_mappings`, `journal_exports`: scoped to the tenant, nothing without context, cross-tenant insert rejected | — |
+| SPA screens in en / ja | ✅ | Vitest: contracts, exchange rates, journal export; locale tests (same keys, placeholders, rule IDs = generated catalogue) | Native-speaker review of the new Japanese wording |
+| *Found:* policy evidence was formatted in the request currency | ✅ | Request detail now formats rule evidence in the base currency | — |
+
+Full check list: **324 backend tests passed, 1 skipped** (opt-in real ClamAV), **66 frontend tests**,
+migrations round trip + `alembic check`, `gen_docs`, `check_doc_claims` (18 ADRs, 22 rules), `pip-audit`,
+`npm audit`, `oxlint`, build: all passed; `ruff format` flagged one new test file on the first run, fixed
+and re-checked.
+
+## Phases 6–10
 
 Not started. Rows are added when each phase begins.

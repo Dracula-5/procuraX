@@ -163,6 +163,21 @@ Apply for a Web-API application ID on the National Tax Agency's qualified-invoic
 `PROCURAX_NTA_APPLICATION_ID`. Production refuses to start with the flag on and no ID. Until then,
 registration numbers are checked by check digit and vendor master only. See [einvoicing.md](einvoicing.md).
 
+## Exchange rates (optional)
+
+Requests in a currency other than the organisation's base currency need a rate, or they are blocked at
+submission (VAL-004). Finance managers or administrators enter rates on **Exchange rates**. To fetch the
+ECB's euro reference rates instead (free, no key, published on ECB working days), set
+`PROCURAX_FX_ECB_ENABLED=true` and use **Fetch ECB reference rates**; nothing is fetched automatically.
+The ECB publishes these rates for information only, so keep manual rates if your accounting policy uses your
+bank's rates (a manual rate wins on the same day).
+
+## Journal export
+
+Set the ledger accounts on **Journal export** (organisation admin). Finance managers then export matched
+and paid invoices as CSV or JSON for the ERP; each document is exported once and the file stays
+downloadable. Nothing is posted to an ERP automatically.
+
 ## If something does not work
 
 | Symptom | Likely cause | Fix |
