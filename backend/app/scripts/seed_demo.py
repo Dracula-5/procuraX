@@ -131,6 +131,7 @@ _TEARDOWN_ORDER = [
     "approval_policies",
     "budgets",
     "invitations",
+    "auth_sessions",
     "procurement_knowledge_documents",
     "contracts",
     "exchange_rates",

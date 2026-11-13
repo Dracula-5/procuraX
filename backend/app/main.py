@@ -63,9 +63,11 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_credentials=False,  # bearer tokens, no cookies
+        # Explicit origins only (never "*"): the refresh cookie travels on /auth/refresh and /auth/logout
+        # when the SPA is on another site; those endpoints also require X-CSRF-Token (ADR-019).
+        allow_credentials=True,
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-CSRF-Token"],
         expose_headers=["X-Request-ID"],
     )
     # Added last → outermost: every response (incl. CORS preflight) gets a request ID.

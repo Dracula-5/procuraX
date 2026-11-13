@@ -75,6 +75,7 @@ class MeOut(BaseModel):
     permissions: list[str]
     organization: OrgOut
     locale: Locale | None = None
+    mfa_enabled: bool = False
 
 
 class PreferencesUpdate(BaseModel):
@@ -89,7 +90,57 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"  # noqa: S105
     expires_in: int
+    # Sent back as X-CSRF-Token on /auth/refresh and /auth/logout (the refresh token is in a cookie).
+    csrf_token: str | None = None
     user: MeOut
+
+
+class MfaChallenge(BaseModel):
+    """The password was right; the second step (POST /auth/mfa/verify) needs a code."""
+
+    mfa_required: bool = True
+    mfa_token: str
+    expires_in: int
+
+
+class MfaVerifyRequest(BaseModel):
+    mfa_token: str = Field(min_length=20, max_length=2000)
+    code: str | None = Field(default=None, max_length=12)
+    recovery_code: str | None = Field(default=None, max_length=40)
+
+
+class MfaCodeIn(BaseModel):
+    code: str | None = Field(default=None, max_length=12)
+    recovery_code: str | None = Field(default=None, max_length=40)
+
+
+class MfaSetupOut(BaseModel):
+    secret: str
+    otpauth_uri: str
+    digits: int
+    period: int
+
+
+class RecoveryCodesOut(BaseModel):
+    recovery_codes: list[str]
+
+
+class SessionOut(BaseModel):
+    id: uuid.UUID  # the session family
+    method: str
+    created_at: datetime
+    last_used_at: datetime
+    expires_at: datetime
+    user_agent: str | None
+    current: bool
+
+
+class AuthConfigOut(BaseModel):
+    registration_enabled: bool
+    demo_mode: bool
+    oidc_enabled: bool
+    oidc_display_name: str | None
+    mfa_available: bool
 
 
 class UserOut(BaseModel):
@@ -103,6 +154,7 @@ class UserOut(BaseModel):
     is_active: bool
     last_login_at: datetime | None
     created_at: datetime
+    mfa_enabled: bool = False
 
 
 class UserUpdate(BaseModel):

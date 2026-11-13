@@ -47,7 +47,16 @@ class Settings(BaseSettings):
 
     jwt_secret: str = _DEV_JWT_SECRET
     jwt_algorithm: str = "HS256"
-    access_token_ttl_minutes: int = 60
+    # Short-lived access token, held in the SPA's memory; a rotating refresh token in an HttpOnly cookie
+    # renews it (ADR-019).
+    access_token_ttl_minutes: int = Field(default=15, ge=1, le=120)
+    refresh_token_ttl_days: int = Field(default=14, ge=1, le=90)  # absolute: sign in again after this
+    refresh_idle_hours: int = Field(default=72, ge=1, le=2160)  # unused this long → signed out
+    refresh_cookie_name: str = "procurax_refresh"
+    # "strict" when the SPA and API share a site (same origin, or the SPA host proxies /api); "none" only
+    # for a cross-site API, where browsers that block third-party cookies will not keep the session.
+    refresh_cookie_samesite: Literal["strict", "lax", "none"] = "strict"
+    mfa_issuer: str = "ProcuraX"
     invitation_ttl_hours: int = 72
 
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
@@ -61,6 +70,16 @@ class Settings(BaseSettings):
     registration_enabled: bool | None = None  # None = enabled unless public_demo
 
     @property
+    def refresh_cookie_secure(self) -> bool:
+        # Browsers drop Secure cookies on plain-http localhost only in some cases; https anywhere else.
+        return self.env == "prod" or self.public_app_url.startswith("https://")
+
+    @property
+    def mfa_available(self) -> bool:
+        """MFA secrets are encrypted with the data key; production refuses enrolment under the dev key."""
+        return not (self.env == "prod" and _DEV_DATA_KEY in self.data_encryption_key.split(","))
+
+    @property
     def allows_registration(self) -> bool:
         return self.registration_enabled if self.registration_enabled is not None else not self.public_demo
 
@@ -70,9 +89,23 @@ class Settings(BaseSettings):
     # from an external scheduler instead). Replicas coordinate through a PostgreSQL advisory lock.
     sla_escalation_interval_seconds: int = Field(default=0, ge=0)
 
-    # Failed-login throttle per client address + e-mail (in-process; one API instance).
+    # Failed sign-in / MFA / invitation throttle, shared by all API processes through PostgreSQL:
+    # limit per address + account, 4x per address, 4x per account (distributed guessing).
     login_max_failures: int = Field(default=5, ge=1)
     login_lockout_seconds: int = Field(default=900, ge=1)
+
+    # --- Single sign-on (OpenID Connect, authorization code + PKCE). Off by default. ---------------
+    # Only existing, active users whose verified e-mail matches can sign in; nobody is created by SSO.
+    oidc_enabled: bool = False
+    oidc_issuer: str | None = None  # e.g. https://login.microsoftonline.com/<tenant>/v2.0
+    oidc_client_id: str | None = None
+    oidc_client_secret: str | None = None
+    # The API's callback as registered with the provider: <public API URL>/api/v1/auth/oidc/callback
+    oidc_redirect_uri: str | None = None
+    oidc_scopes: str = "openid email profile"
+    oidc_display_name: str = "Single sign-on"
+    oidc_allowed_domains: list[str] = Field(default_factory=list)
+    oidc_timeout_seconds: float = Field(default=10, gt=0, le=60)
 
     # --- Notifications (transactional outbox + worker). External channels are off by default. ---
     # Outbox worker inside the API process (seconds; 0 = off, run `python -m app.worker` instead).
@@ -193,6 +226,15 @@ class Settings(BaseSettings):
             problems.append("PROCURAX_DEMO_MODE must be false in production unless PROCURAX_PUBLIC_DEMO=true")
         if self.db_echo:
             problems.append("PROCURAX_DB_ECHO must be false in production")
+        if self.oidc_enabled and not all(
+            (self.oidc_issuer, self.oidc_client_id, self.oidc_client_secret, self.oidc_redirect_uri)
+        ):
+            problems.append(
+                "PROCURAX_OIDC_ISSUER, _CLIENT_ID, _CLIENT_SECRET and _REDIRECT_URI are required when "
+                "PROCURAX_OIDC_ENABLED=true"
+            )
+        if self.oidc_enabled and not (self.oidc_issuer or "").startswith("https://"):
+            problems.append("PROCURAX_OIDC_ISSUER must be an https:// URL in production")
         if self.nta_registry_enabled and not self.nta_application_id:
             problems.append("PROCURAX_NTA_APPLICATION_ID is required when PROCURAX_NTA_REGISTRY_ENABLED=true")
         if not self.public_app_url.startswith("https://"):

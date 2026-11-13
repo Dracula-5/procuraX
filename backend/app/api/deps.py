@@ -10,7 +10,7 @@ from app.core.errors import AuthenticationError, PermissionDeniedError
 from app.core.principal import Principal
 from app.core.security import decode_access_token
 from app.domain.rbac import Permission, Role, permissions_for
-from app.modules.identity.models import User, UserRole
+from app.modules.identity.models import AuthSession, User, UserRole
 
 _bearer = HTTPBearer(auto_error=False, description="Access token from /auth/login")
 
@@ -23,10 +23,21 @@ async def get_principal(
 ) -> Principal:
     if credentials is None:
         raise AuthenticationError("Authentication required")
-    user_id, org_id = decode_access_token(credentials.credentials)
+    claims = decode_access_token(credentials.credentials)
+    user_id, org_id = claims.user_id, claims.org_id
 
     # From here on every statement in this request runs under the caller's tenant (RLS).
     await bind_tenant(session, org_id)
+
+    if claims.session_id is not None:
+        # Signing out (or an administrator revoking the session) ends the access token at once.
+        revoked = await session.scalar(
+            select(AuthSession.id)
+            .where(AuthSession.family_id == claims.session_id, AuthSession.revoked_at.is_not(None))
+            .limit(1)
+        )
+        if revoked is not None:
+            raise AuthenticationError("This session was signed out", details={"reason": "session_revoked"})
 
     user = await session.get(User, user_id)
     if user is None or user.org_id != org_id or not user.is_active or user.deleted_at is not None:
@@ -42,6 +53,7 @@ async def get_principal(
         roles=roles,
         permissions=permissions_for(roles),
         department_id=user.department_id,
+        session_id=claims.session_id,
     )
 
 

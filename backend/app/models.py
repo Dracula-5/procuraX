@@ -6,6 +6,8 @@ from app.modules.contracts.models import Contract
 from app.modules.documents.models import InvoiceDocument
 from app.modules.finance.models import ExchangeRate, GLAccountMapping, JournalExport
 from app.modules.identity.models import (
+    AuthSession,
+    AuthThrottle,
     Invitation,
     Organization,
     OrgSequence,
@@ -41,6 +43,7 @@ TENANT_TABLES = [
     "users",
     "user_roles",
     "invitations",
+    "auth_sessions",
     "org_sequences",
     "departments",
     "cost_centers",
@@ -78,6 +81,8 @@ __all__ = [
     "ApprovalPolicy",
     "ProcurementKnowledgeDocument",
     "AuditLog",
+    "AuthSession",
+    "AuthThrottle",
     "Budget",
     "Contract",
     "CostCenter",

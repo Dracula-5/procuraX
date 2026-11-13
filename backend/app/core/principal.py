@@ -16,6 +16,7 @@ class Principal:
     roles: frozenset[Role]
     permissions: frozenset[Permission]
     department_id: uuid.UUID | None = None
+    session_id: uuid.UUID | None = None  # sign-in session family of the access token
 
     def has(self, permission: Permission) -> bool:
         return permission in self.permissions
