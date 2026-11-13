@@ -21,6 +21,7 @@ class EventType(StrEnum):
     PO_SENT = "purchase_order.sent"
     INVOICE_MISMATCH = "invoice.mismatch"
     PAYMENT_AWAITING_APPROVAL = "payment.awaiting_approval"
+    CONTRACT_EXPIRING = "contract.expiring"
 
 
 class Channel(StrEnum):
@@ -184,6 +185,11 @@ _TEMPLATES: dict[str, dict[str, tuple[str, str]]] = {
             "Payment awaiting approval: {invoice_number}",
             "A payment of {amount} for invoice {invoice_number} is waiting for finance approval.",
         ),
+        EventType.CONTRACT_EXPIRING: (
+            "Contract ending soon: {contract_number}",
+            "Contract {contract_number} “{title}” with {vendor} ends on {ends_on} ({days_left} days). "
+            "Renew it or plan a new sourcing event.",
+        ),
     },
     "ja": {
         EventType.APPROVAL_ROUTED: (
@@ -217,6 +223,11 @@ _TEMPLATES: dict[str, dict[str, tuple[str, str]]] = {
         EventType.PAYMENT_AWAITING_APPROVAL: (
             "支払承認待ち：{invoice_number}",
             "請求書 {invoice_number} の支払 {amount} が経理の承認を待っています。",
+        ),
+        EventType.CONTRACT_EXPIRING: (
+            "契約期限が近づいています：{contract_number}",
+            "{vendor} との契約 {contract_number}「{title}」は {ends_on} に終了します（残り {days_left} 日）。"
+            "更新または新たな調達をご検討ください。",
         ),
     },
 }

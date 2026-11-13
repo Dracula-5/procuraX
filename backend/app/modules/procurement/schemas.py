@@ -1,13 +1,24 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
 
 from app.domain.catalog import SpendCategory
+from app.domain.fx import SUPPORTED_CURRENCIES
 from app.domain.policy.models import PolicyConfig
 from app.domain.workflow.purchase_request import PRStatus
+
+
+def _supported_currency(value: str) -> str:
+    code = value.strip().upper()
+    if code not in SUPPORTED_CURRENCIES:
+        raise ValueError(f"Unsupported currency {value!r}; supported: {', '.join(SUPPORTED_CURRENCIES)}")
+    return code
+
+
+Currency = Annotated[str, Field(min_length=3, max_length=3), AfterValidator(_supported_currency)]
 
 
 class PRItemIn(BaseModel):
@@ -25,6 +36,8 @@ class PRCreate(BaseModel):
     required_by: date | None = None
     preferred_vendor_id: uuid.UUID | None = None
     is_emergency: bool = False
+    # ISO 4217; defaults to the organisation's base currency.
+    currency: Currency | None = None
     items: list[PRItemIn] = Field(default_factory=list, max_length=100)
 
 
@@ -36,6 +49,7 @@ class PRUpdate(BaseModel):
     required_by: date | None = None
     preferred_vendor_id: uuid.UUID | None = None
     is_emergency: bool | None = None
+    currency: Currency | None = None
     items: list[PRItemIn] | None = Field(default=None, max_length=100)
 
 
@@ -78,6 +92,8 @@ class PRSummaryOut(BaseModel):
     category: SpendCategory
     currency: str
     estimated_total: Decimal
+    # In the organisation's base currency: equal to estimated_total, or converted at submission.
+    base_amount: Decimal | None = None
     requester_id: uuid.UUID
     requester_name: str | None
     department_id: uuid.UUID | None
@@ -95,6 +111,11 @@ class PRSummaryOut(BaseModel):
 
 
 class PRDetailOut(PRSummaryOut):
+    fx_rate: Decimal | None = None
+    fx_rate_on: date | None = None
+    fx_source: str | None = None
+    contract_id: uuid.UUID | None = None
+    contract_number: str | None = None
     justification: str
     fiscal_year: int | None
     policy_version: int | None

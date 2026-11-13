@@ -35,6 +35,8 @@ class Organization(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, Base):
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
     # Payer details for Zengin transfer files (consignor code, name and debit account).
     payment_settings: Mapped[dict | None] = mapped_column(JSONB)
+    # Control accounts for the ERP journal export (payable, input tax, bank, default expense).
+    ledger_settings: Mapped[dict | None] = mapped_column(JSONB)
 
 
 class User(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):

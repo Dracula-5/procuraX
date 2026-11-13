@@ -139,6 +139,14 @@ class Settings(BaseSettings):
     nta_cache_hours: int = Field(default=24, ge=1, le=720)
     nta_timeout_seconds: float = Field(default=5, gt=0, le=30)
 
+    # --- Exchange rates -----------------------------------------------------------------------
+    # Optional ECB euro reference rates (free, no key; published once per working day around 16:00
+    # CET). Off: rates are entered manually. Requests in another currency without a rate are blocked
+    # by VAL-004 either way.
+    fx_ecb_enabled: bool = False
+    fx_ecb_url: str = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+    fx_timeout_seconds: float = Field(default=10, gt=0, le=60)
+
     tesseract_path: str | None = None
     pdftoppm_path: str | None = None
     # Directory containing *.traineddata (sets TESSDATA_PREFIX for the OCR subprocess).

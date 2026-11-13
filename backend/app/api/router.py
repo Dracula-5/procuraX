@@ -1,7 +1,9 @@
 from fastapi import APIRouter
 
 from app.modules.audit.router import router as audit_router
+from app.modules.contracts.router import router as contracts_router
 from app.modules.documents.router import router as documents_router
+from app.modules.finance.router import router as finance_router
 from app.modules.identity.router import auth_router, org_router, users_router
 from app.modules.notifications.router import router as notifications_router
 from app.modules.organization.router import router as structure_router
@@ -32,5 +34,7 @@ for r in (
     audit_router,
     notifications_router,
     documents_router,
+    contracts_router,
+    finance_router,
 ):
     api_router.include_router(r)

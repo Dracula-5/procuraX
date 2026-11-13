@@ -1259,7 +1259,7 @@ async def spend_analytics(
         select(
             PurchaseRequest.category,
             func.count(PurchaseRequest.id),
-            func.coalesce(func.sum(PurchaseRequest.estimated_total), 0),
+            func.coalesce(func.sum(PurchaseRequest.base_amount), 0),
         )
         .where(*spend_filters)
         .group_by(PurchaseRequest.category)
@@ -1274,7 +1274,7 @@ async def spend_analytics(
             Department.id,
             func.coalesce(Department.name, "Unassigned"),
             func.count(PurchaseRequest.id),
-            func.coalesce(func.sum(PurchaseRequest.estimated_total), 0),
+            func.coalesce(func.sum(PurchaseRequest.base_amount), 0),
         )
         .select_from(PurchaseRequest)
         .outerjoin(
@@ -1283,14 +1283,14 @@ async def spend_analytics(
         )
         .where(*spend_filters)
         .group_by(Department.id, Department.name)
-        .order_by(func.sum(PurchaseRequest.estimated_total).desc())
+        .order_by(func.sum(PurchaseRequest.base_amount).desc())
     )
     vendors = await session.execute(
         select(
             Vendor.id,
             func.coalesce(Vendor.name, "Unspecified vendor"),
             func.count(PurchaseRequest.id),
-            func.coalesce(func.sum(PurchaseRequest.estimated_total), 0),
+            func.coalesce(func.sum(PurchaseRequest.base_amount), 0),
         )
         .select_from(PurchaseRequest)
         .outerjoin(
@@ -1299,7 +1299,7 @@ async def spend_analytics(
         )
         .where(*spend_filters)
         .group_by(Vendor.id, Vendor.name)
-        .order_by(func.sum(PurchaseRequest.estimated_total).desc())
+        .order_by(func.sum(PurchaseRequest.base_amount).desc())
     )
     invoices = await session.execute(
         select(Invoice.match_status, func.count(Invoice.id), func.coalesce(func.sum(Invoice.total), 0))
@@ -1355,7 +1355,7 @@ async def spend_analytics(
         select(
             month_bucket,
             func.count(PurchaseRequest.id),
-            func.coalesce(func.sum(PurchaseRequest.estimated_total), 0),
+            func.coalesce(func.sum(PurchaseRequest.base_amount), 0),
         )
         .where(
             *spend_filters,

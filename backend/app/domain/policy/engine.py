@@ -23,7 +23,8 @@ from app.domain.policy.models import (
 )
 from app.domain.policy.rules import RULES
 
-ENGINE_VERSION = "1.0"
+# 1.1: VAL-004 blocks only without an exchange rate; amounts are in base currency; CON-001 added.
+ENGINE_VERSION = "1.1"
 
 
 class _Collector:
@@ -74,11 +75,11 @@ def evaluate(facts: RequestFacts, policy: PolicyConfig, *, policy_version: int) 
         c.hit("VAL-001", "block", "Add at least one line item with a positive amount.", amount=amount)
     if not facts.has_cost_center:
         c.hit("VAL-002", "block", "Select the cost centre this purchase is charged to.")
-    if facts.currency != policy.currency:
+    if facts.currency != policy.currency and not facts.has_exchange_rate:
         c.hit(
             "VAL-004",
             "block",
-            f"Request currency {facts.currency} differs from policy currency {policy.currency}.",
+            f"No exchange rate from {facts.currency} to the policy currency {policy.currency} is recorded.",
             request_currency=facts.currency,
             policy_currency=policy.currency,
         )
@@ -127,6 +128,28 @@ def evaluate(facts: RequestFacts, policy: PolicyConfig, *, policy_version: int) 
                 vendor_id=vendor.id,
                 contract_status=vendor.contract_status.value,
             )
+        contract = vendor.contract
+        if policy.route_contract_cap_overrun and contract is not None:
+            if not contract.cap_convertible:
+                c.route(
+                    ApproverRole.PROCUREMENT_OFFICER,
+                    "CON-001",
+                    f"Contract {contract.number}'s cap is in {contract.cap_currency}, which has no exchange rate, "
+                    "so it cannot be checked.",
+                    contract=contract.number,
+                    cap_currency=contract.cap_currency,
+                )
+            elif contract.value_cap is not None and contract.committed + amount > contract.value_cap:
+                c.route(
+                    ApproverRole.PROCUREMENT_OFFICER,
+                    "CON-001",
+                    f"Contract {contract.number}: {fmt(contract.committed)} already committed plus {fmt(amount)} "
+                    f"exceeds the cap {fmt(contract.value_cap)}.",
+                    contract=contract.number,
+                    committed=contract.committed,
+                    amount=amount,
+                    threshold=contract.value_cap,
+                )
         if vendor.categories and facts.category not in vendor.categories:
             c.hit(
                 "VEN-005",

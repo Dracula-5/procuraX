@@ -2,7 +2,9 @@
 
 from app.integrations.models import QualifiedInvoiceRegistryEntry
 from app.modules.audit.models import AuditLog
+from app.modules.contracts.models import Contract
 from app.modules.documents.models import InvoiceDocument
+from app.modules.finance.models import ExchangeRate, GLAccountMapping, JournalExport
 from app.modules.identity.models import (
     Invitation,
     Organization,
@@ -44,6 +46,7 @@ TENANT_TABLES = [
     "cost_centers",
     "budgets",
     "vendors",
+    "contracts",
     "purchase_requests",
     "purchase_request_items",
     "approvals",
@@ -53,10 +56,13 @@ TENANT_TABLES = [
     "goods_receipts",
     "invoices",
     "invoice_documents",
+    "journal_exports",
     "vendor_quotes",
     "payments",
     "approval_delegations",
     "procurement_knowledge_documents",
+    "exchange_rates",
+    "gl_account_mappings",
     "notification_outbox",
     "notification_deliveries",
     "notifications",
@@ -73,7 +79,10 @@ __all__ = [
     "ProcurementKnowledgeDocument",
     "AuditLog",
     "Budget",
+    "Contract",
     "CostCenter",
+    "ExchangeRate",
+    "GLAccountMapping",
     "Department",
     "Invitation",
     "InvoiceDocument",
@@ -84,6 +93,7 @@ __all__ = [
     "OutboxEvent",
     "GoodsReceipt",
     "Invoice",
+    "JournalExport",
     "Payment",
     "OrgSequence",
     "Organization",

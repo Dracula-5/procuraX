@@ -29,8 +29,9 @@ RULES: dict[str, Rule] = {
         ),
         Rule(
             "VAL-004",
-            "Currency mismatch",
-            "Request currency must match the policy currency (multi-currency approval is future scope).",
+            "No exchange rate",
+            "A request in another currency needs a recorded exchange rate to the policy currency; amounts are "
+            "then compared in the policy currency.",
         ),
         Rule(
             "VEN-001",
@@ -95,6 +96,12 @@ RULES: dict[str, Rule] = {
             "Possible split purchase",
             "Recent requests in the same category, combined with this one, cross an approval threshold "
             "that each stays under individually.",
+        ),
+        Rule(
+            "CON-001",
+            "Contract value cap exceeded",
+            "The purchase would take spend under the vendor's contract past its value cap (or the cap's currency has "
+            "no exchange rate); procurement must review.",
         ),
         Rule("EMG-001", "Emergency purchase", "Flagged for retrospective procurement review."),
         Rule("AUTO-001", "Auto-approved", "Low-value request with no risk signals; approved by policy."),

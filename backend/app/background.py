@@ -1,12 +1,14 @@
 """Background work shared by `python -m app.worker` and the API's optional in-process loop.
 
-One cycle = notification fan-out and delivery, then invoice-file virus scans. Every stage claims rows
-with FOR UPDATE SKIP LOCKED, so any number of processes can run cycles at the same time.
+One cycle = notification fan-out and delivery, invoice-file virus scans, then the contract expiry and
+reminder sweep. Every stage claims rows with FOR UPDATE SKIP LOCKED, so any number of processes can run
+cycles at the same time.
 """
 
 import asyncio
 import logging
 
+from app.modules.contracts.service import sweep_once as contract_sweep
 from app.modules.documents.scanner import scan_once
 from app.modules.notifications.worker import process_once
 
@@ -14,7 +16,7 @@ logger = logging.getLogger("procurax.worker")
 
 
 async def run_cycle() -> dict[str, int]:
-    return {**await process_once(), **await scan_once()}
+    return {**await process_once(), **await scan_once(), **await contract_sweep()}
 
 
 async def background_loop(interval_seconds: float, *, stop: asyncio.Event | None = None) -> None:
