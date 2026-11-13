@@ -32,6 +32,10 @@ export function UsersAdmin() {
     mutationFn: (id: string) => api.del(`/invitations/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["invitations"] }),
   });
+  const resetMfa = useMutation({
+    mutationFn: (id: string) => api.post(`/users/${id}/mfa/reset`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["users"] }),
+  });
 
   if (users.isLoading || roles.isLoading) return <Spinner />;
 
@@ -87,6 +91,7 @@ export function UsersAdmin() {
         />
       )}
 
+      <ErrorNotice error={resetMfa.error} />
       <Table>
         <thead>
           <tr>
@@ -103,7 +108,8 @@ export function UsersAdmin() {
             <tr key={u.id} className={u.is_active ? "" : "opacity-60"}>
               <Td>
                 <p className="font-medium">
-                  {u.full_name} {!u.is_active && <Badge>{t("common.inactive")}</Badge>}
+                  {u.full_name} {!u.is_active && <Badge>{t("common.inactive")}</Badge>}{" "}
+                  {u.mfa_enabled && <Badge tone="ok">{t("security.admin.mfaOn")}</Badge>}
                 </p>
                 <p className="text-xs text-muted">{u.email}</p>
               </Td>
@@ -117,10 +123,20 @@ export function UsersAdmin() {
               <Td>{deptName(u.department_id)}</Td>
               <Td>{userName(u.manager_id)}</Td>
               <Td className="whitespace-nowrap text-muted">{u.last_login_at ? relative(u.last_login_at) : t("users.never")}</Td>
-              <Td>
+              <Td className="whitespace-nowrap">
                 <Button size="sm" variant="ghost" onClick={() => setEditing(u)}>
                   {t("common.edit")}
                 </Button>
+                {u.mfa_enabled && u.id !== me?.id && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    loading={resetMfa.isPending && resetMfa.variables === u.id}
+                    onClick={() => window.confirm(t("security.admin.resetConfirm", { name: u.full_name })) && resetMfa.mutate(u.id)}
+                  >
+                    {t("security.admin.resetMfa")}
+                  </Button>
+                )}
               </Td>
             </tr>
           ))}

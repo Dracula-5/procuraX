@@ -28,6 +28,7 @@ const RequestForm = lazy(() => import("./pages/RequestForm").then((m) => ({ defa
 const Requests = lazy(() => import("./pages/Requests").then((m) => ({ default: m.Requests })));
 const VendorBankAccount = lazy(() => import("./pages/VendorBankAccount").then((m) => ({ default: m.VendorBankAccount })));
 const Vendors = lazy(() => import("./pages/Vendors").then((m) => ({ default: m.Vendors })));
+const Security = lazy(() => import("./pages/Security").then((m) => ({ default: m.Security })));
 const Structure = lazy(() => import("./pages/admin/Structure").then((m) => ({ default: m.Structure })));
 const UsersAdmin = lazy(() => import("./pages/admin/Users").then((m) => ({ default: m.UsersAdmin })));
 
@@ -76,6 +77,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="requests" element={<Requests />} />
         <Route path="notifications" element={<Notifications />} />
+        <Route path="security" element={<Security />} />
         <Route path="requests/new" element={<RequestForm />} />
         <Route path="requests/:id" element={<RequestDetail />} />
         <Route path="requests/:id/edit" element={<RequestForm />} />

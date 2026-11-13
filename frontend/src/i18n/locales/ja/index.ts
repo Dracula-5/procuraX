@@ -5,6 +5,7 @@ import { contracts, fx, ledger } from "./finance";
 import { inbox, vendors } from "./inboxVendors";
 import { labels } from "./labels";
 import { notifications } from "./notifications";
+import { security } from "./security";
 import { p2p } from "./p2p";
 import { policyPanel, requestDetail } from "./requestDetail";
 import { requestForm, requests } from "./requests";
@@ -43,6 +44,7 @@ export const ja: Messages = {
   contracts,
   fx,
   ledger,
+  security,
 };
 
 

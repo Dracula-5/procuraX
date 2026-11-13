@@ -26,13 +26,40 @@ export interface Me {
   organization: Organization;
   /** Saved UI language; null = not chosen (the browser language applies). */
   locale: "en" | "ja" | null;
+  mfa_enabled?: boolean;
 }
 
 export interface TokenResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
+  csrf_token?: string | null;
   user: Me;
+}
+
+/** Password accepted; a code from the authenticator app (or a recovery code) completes the sign-in. */
+export interface MfaChallenge {
+  mfa_required: true;
+  mfa_token: string;
+  expires_in: number;
+}
+
+export interface AuthConfig {
+  registration_enabled: boolean;
+  demo_mode: boolean;
+  oidc_enabled: boolean;
+  oidc_display_name: string | null;
+  mfa_available: boolean;
+}
+
+export interface SessionInfo {
+  id: string;
+  method: string;
+  created_at: string;
+  last_used_at: string;
+  expires_at: string;
+  user_agent: string | null;
+  current: boolean;
 }
 
 export type PRStatus = "draft" | "pending_approval" | "policy_blocked" | "approved" | "rejected" | "cancelled";
@@ -238,6 +265,7 @@ export interface User {
   is_active: boolean;
   last_login_at: string | null;
   created_at: string;
+  mfa_enabled?: boolean;
 }
 
 export interface Invitation {

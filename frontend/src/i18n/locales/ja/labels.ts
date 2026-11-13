@@ -216,5 +216,11 @@ export const labels: typeof enLabels = {
     "ledger.settings_changed": "勘定科目を更新",
     "ledger.mappings_changed": "費用科目の対応表を更新",
     "journal.exported": "仕訳を出力",
+    "user.mfa_enabled": "2段階認証を有効化",
+    "user.mfa_disabled": "2段階認証を無効化",
+    "user.mfa_reset": "管理者が2段階認証をリセット",
+    "user.mfa_recovery_code_used": "リカバリーコードでサインイン",
+    "user.mfa_recovery_codes_regenerated": "リカバリーコードを再発行",
+    "user.sessions_revoked": "他のセッションからサインアウト",
   },
 };

@@ -217,5 +217,11 @@ export const labels = {
     "ledger.settings_changed": "Ledger accounts updated",
     "ledger.mappings_changed": "Expense account mappings updated",
     "journal.exported": "Journal exported",
+    "user.mfa_enabled": "Two-factor sign-in turned on",
+    "user.mfa_disabled": "Two-factor sign-in turned off",
+    "user.mfa_reset": "Two-factor sign-in reset by an administrator",
+    "user.mfa_recovery_code_used": "Signed in with a recovery code",
+    "user.mfa_recovery_codes_regenerated": "Recovery codes replaced",
+    "user.sessions_revoked": "Signed out of other sessions",
   },
 };

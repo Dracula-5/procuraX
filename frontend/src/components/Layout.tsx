@@ -8,6 +8,7 @@ import {
   FileSignature,
   FileText,
   Gauge,
+  KeyRound,
   Landmark,
   LogOut,
   Menu,
@@ -126,6 +127,13 @@ export function Layout() {
             ))}
           </div>
         </div>
+        <NavLink
+          to="/app/security"
+          onClick={() => setOpen(false)}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-muted hover:bg-surface-2 hover:text-fg"
+        >
+          <KeyRound className="size-4" /> {t("security.navLink")}
+        </NavLink>
         <button onClick={signOut} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-muted hover:bg-surface-2 hover:text-fg">
           <LogOut className="size-4" /> {t("layout.signOut")}
         </button>

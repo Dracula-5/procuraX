@@ -1,15 +1,15 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { RoleBadge } from "../components/badges";
 import { DeploymentNotice } from "../components/DeploymentNotice";
 import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { Button, ErrorNotice, Field, Input } from "../components/ui";
-import { api } from "../lib/api";
+import { api, apiUrl } from "../lib/api";
 import { useMeta } from "../lib/meta";
-import type { DemoPersona, TokenResponse } from "../lib/types";
+import type { AuthConfig, DemoPersona, MfaChallenge, TokenResponse } from "../lib/types";
 
 export function AuthShell({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
@@ -30,21 +30,76 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
   );
 }
 
-export function Login() {
+/** Second sign-in step: a code from the authenticator app, or one recovery code. */
+function MfaStep({ challenge, onSignedIn, onBack }: { challenge: MfaChallenge; onSignedIn: (res: TokenResponse) => void; onBack: () => void }) {
   const { t } = useTranslation();
+  const [recovery, setRecovery] = useState(false);
+  const [value, setValue] = useState("");
+  const verify = useMutation({
+    mutationFn: () =>
+      api.post<TokenResponse>("/auth/mfa/verify", { mfa_token: challenge.mfa_token, ...(recovery ? { recovery_code: value } : { code: value }) }),
+    onSuccess: onSignedIn,
+  });
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    verify.mutate();
+  };
+  return (
+    <AuthShell title={t("security.login.mfaTitle")} subtitle={t("security.login.mfaSubtitle")}>
+      <form onSubmit={submit} className="space-y-4 rounded-lg border border-border bg-surface p-5">
+        <Field label={recovery ? t("security.mfa.recoveryCode") : t("security.mfa.code")}>
+          <Input
+            autoFocus
+            required
+            autoComplete="one-time-code"
+            inputMode={recovery ? "text" : "numeric"}
+            maxLength={recovery ? 20 : 6}
+            value={value}
+            onChange={(e) => setValue(e.target.value.trim())}
+          />
+        </Field>
+        <button type="button" className="text-sm text-primary hover:underline" onClick={() => { setRecovery((r) => !r); setValue(""); }}>
+          {recovery ? t("security.login.useApp") : t("security.login.useRecovery")}
+        </button>
+        <ErrorNotice error={verify.error} />
+        <Button type="submit" className="w-full" loading={verify.isPending}>
+          {t("security.login.verify")}
+        </Button>
+        <button type="button" className="block w-full text-center text-sm text-muted hover:underline" onClick={onBack}>
+          {t("security.login.back")}
+        </button>
+      </form>
+    </AuthShell>
+  );
+}
+
+export function Login() {
+  const { t, i18n } = useTranslation();
   const { me, signIn } = useAuth();
   const navigate = useNavigate();
   const from = (useLocation().state as { from?: string } | null)?.from ?? "/app";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [challenge, setChallenge] = useState<MfaChallenge | null>(null);
   const registration = useMeta().data?.registration_enabled !== false;
+  const config = useQuery({ queryKey: ["auth-config"], queryFn: () => api.get<AuthConfig>("/auth/config") });
+  const ssoError = useSearchParams()[0].get("sso_error");
+  const ssoMessage = ssoError
+    ? i18n.exists(`security.ssoErrors.${ssoError}`)
+      ? String(t(`security.ssoErrors.${ssoError}` as never))
+      : t("security.ssoErrors.generic")
+    : null;
 
   const personas = useQuery({ queryKey: ["demo-personas"], queryFn: () => api.get<DemoPersona[]>("/auth/demo-personas") });
+  const finish = (res: TokenResponse) => {
+    signIn(res);
+    navigate(from, { replace: true });
+  };
   const login = useMutation({
-    mutationFn: () => api.post<TokenResponse>("/auth/login", { email, password }),
+    mutationFn: () => api.post<TokenResponse | MfaChallenge>("/auth/login", { email, password }),
     onSuccess: (res) => {
-      signIn(res);
-      navigate(from, { replace: true });
+      if ("mfa_required" in res) setChallenge(res);
+      else finish(res);
     },
   });
   const demo = useMutation({
@@ -56,6 +111,7 @@ export function Login() {
   });
 
   if (me) return <Navigate to="/app" replace />;
+  if (challenge) return <MfaStep challenge={challenge} onSignedIn={finish} onBack={() => setChallenge(null)} />;
   const submit = (e: FormEvent) => {
     e.preventDefault();
     login.mutate();
@@ -66,6 +122,19 @@ export function Login() {
       <div className="mb-4 overflow-hidden rounded-md">
         <DeploymentNotice />
       </div>
+      {ssoMessage && (
+        <p role="alert" className="mb-4 rounded-md border border-danger/40 bg-danger-soft px-3 py-2 text-sm">
+          {ssoMessage}
+        </p>
+      )}
+      {config.data?.oidc_enabled && (
+        <div className="mb-4 space-y-3">
+          <Button type="button" variant="secondary" className="w-full" onClick={() => window.location.assign(apiUrl("/auth/oidc/start"))}>
+            {t("security.login.sso", { name: config.data.oidc_display_name ?? "SSO" })}
+          </Button>
+          <p className="text-center text-xs text-muted">{t("security.login.or")}</p>
+        </div>
+      )}
       <form onSubmit={submit} className="space-y-4 rounded-lg border border-border bg-surface p-5">
         <Field label={t("auth.email")}>
           <Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
