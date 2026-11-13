@@ -1,10 +1,12 @@
 import asyncio
 import contextlib
+import hmac
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -12,6 +14,7 @@ from sqlalchemy import text
 from app.api.error_handlers import register_exception_handlers
 from app.api.router import api_router
 from app.background import background_loop
+from app.core import metrics
 from app.core.config import get_settings
 from app.core.db import dispose_engine, get_engine
 from app.core.logging import configure_logging
@@ -74,6 +77,11 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_prefix)
+    metrics.BUILD_INFO.labels(app.version, os.environ.get("RENDER_GIT_COMMIT", "")[:7] or "local").set(1)
+    if settings.otel_enabled:
+        from app.core.tracing import setup_tracing  # noqa: PLC0415 - optional, off by default
+
+        setup_tracing(app, settings)
 
     @app.get("/health", tags=["ops"], include_in_schema=False)
     async def health() -> dict[str, str]:
@@ -95,6 +103,19 @@ def create_app() -> FastAPI:
             "commit": os.environ.get("RENDER_GIT_COMMIT", "")[:7] or None,
             "allowed_origins": current.cors_origins,
         }
+
+    @app.get(f"{settings.api_prefix}/metrics", tags=["ops"], include_in_schema=False, response_model=None)
+    async def prometheus_metrics(authorization: Annotated[str | None, Header()] = None) -> Response:
+        """Prometheus scrape endpoint. Production requires `Authorization: Bearer <PROCURAX_METRICS_TOKEN>`."""
+        current = get_settings()
+        token = current.metrics_token
+        if not current.metrics_enabled or (current.env == "prod" and not token):
+            return Response(status_code=404)
+        if token and not hmac.compare_digest(authorization or "", f"Bearer {token}"):
+            return Response(status_code=401, headers={"WWW-Authenticate": "Bearer"})
+        await metrics.refresh_gauges()
+        body, content_type = metrics.render()
+        return Response(body, media_type=content_type, headers={"Cache-Control": "no-store"})
 
     @app.get("/ready", tags=["ops"], include_in_schema=False)
     async def ready() -> JSONResponse:

@@ -16,6 +16,7 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import metrics
 from app.core.config import Settings, get_settings
 from app.core.db import system_session, utcnow
 from app.core.storage import ObjectStorage, get_storage
@@ -102,6 +103,7 @@ async def scan_batch(
             doc.scan_detail = detail
             doc.scanned_at = now
             counts["scanned"] += 1
+            metrics.DOCUMENT_SCANS.labels(status.value).inc()
             if status == ScanStatus.INFECTED:
                 counts["infected"] += 1
                 logger.warning(
@@ -111,6 +113,7 @@ async def scan_batch(
             doc.scan_detail = f"{type(exc).__name__}: {exc}"[:2000]
             doc.next_scan_at = now + backoff(min(doc.scan_attempts, 10), key=str(doc.id))
             counts["scan_errors"] += 1
+            metrics.DOCUMENT_SCANS.labels("error").inc()
     await session.commit()
     return counts
 

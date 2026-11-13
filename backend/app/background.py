@@ -8,6 +8,7 @@ cycles at the same time.
 import asyncio
 import logging
 
+from app.core import metrics
 from app.modules.contracts.service import sweep_once as contract_sweep
 from app.modules.documents.scanner import scan_once
 from app.modules.notifications.worker import process_once
@@ -16,7 +17,16 @@ logger = logging.getLogger("procurax.worker")
 
 
 async def run_cycle() -> dict[str, int]:
-    return {**await process_once(), **await scan_once(), **await contract_sweep()}
+    try:
+        counts = {**await process_once(), **await scan_once(), **await contract_sweep()}
+    except Exception:
+        metrics.WORKER_CYCLES.labels("failed").inc()
+        raise
+    metrics.WORKER_CYCLES.labels("ok").inc()
+    metrics.WORKER_LAST_CYCLE.set(metrics.now())
+    # Keep this process's queue gauges current too (the worker exposes its own /metrics).
+    await metrics.refresh_gauges()
+    return counts
 
 
 async def background_loop(interval_seconds: float, *, stop: asyncio.Event | None = None) -> None:

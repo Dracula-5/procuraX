@@ -17,7 +17,11 @@ import logging
 import signal
 import sys
 
+from prometheus_client import start_http_server
+
 from app.background import background_loop, run_cycle
+from app.core import metrics
+from app.core.config import get_settings
 from app.core.db import dispose_engine
 from app.core.logging import configure_logging
 
@@ -33,7 +37,18 @@ async def _run(once: bool, interval: float) -> int:
             # Windows has no add_signal_handler; Ctrl+C raises KeyboardInterrupt there instead.
             with contextlib.suppress(NotImplementedError, RuntimeError):
                 loop.add_signal_handler(sig, stop.set)
-        logging.getLogger("procurax.worker").info("worker_started", extra={"interval": interval})
+        settings = get_settings()
+        if settings.otel_enabled:
+            from app.core.tracing import setup_worker_tracing  # noqa: PLC0415 - optional, off by default
+
+            setup_worker_tracing(settings)
+        port = settings.worker_metrics_port
+        if port:
+            # Prometheus scrapes the worker's own counters (cycles, deliveries, scans) here.
+            start_http_server(port, registry=metrics.REGISTRY)
+        logging.getLogger("procurax.worker").info(
+            "worker_started", extra={"interval": interval, "metrics_port": port}
+        )
         await background_loop(interval, stop=stop)
         return 0
     finally:

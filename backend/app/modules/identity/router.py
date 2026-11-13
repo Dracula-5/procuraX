@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header, Request, Response, status
 from fastapi.responses import RedirectResponse
 
 from app.api.deps import DB, CurrentUser, requires
+from app.core import metrics
 from app.core.config import get_settings
 from app.core.db import utcnow
 from app.core.errors import AuthenticationError, NotFoundError, PermissionDeniedError
@@ -115,6 +116,11 @@ async def _throttled(purpose: str, request: Request, account: str) -> tuple[list
     return keys, success_key
 
 
+async def _failed(keys: list[str]) -> None:
+    metrics.AUTH_FAILURES.labels(keys[0].split(":", 1)[0]).inc()
+    await auth_throttle.record_failure(*keys)
+
+
 def _reason(exc: AuthenticationError) -> str | None:
     return exc.details.get("reason") if isinstance(exc.details, dict) else None
 
@@ -153,7 +159,7 @@ async def login(data: LoginRequest, request: Request, response: Response) -> Tok
     try:
         result = await service.login(data.email, data.password, _agent(request))
     except AuthenticationError:
-        await auth_throttle.record_failure(*keys)
+        await _failed(keys)
         raise
     await auth_throttle.reset(success_key)
     if isinstance(result, MfaChallenge):
@@ -169,7 +175,7 @@ async def verify_mfa(data: MfaVerifyRequest, request: Request, response: Respons
     try:
         sign_in = await service.finish_mfa_sign_in(user_id, data.code, data.recovery_code, _agent(request))
     except AuthenticationError:
-        await auth_throttle.record_failure(*keys)
+        await _failed(keys)
         raise
     await auth_throttle.reset(success_key)
     return _set_refresh_cookie(response, sign_in)
@@ -202,7 +208,7 @@ async def accept_invitation(
     try:
         sign_in = await service.accept_invitation(data, _agent(request))
     except NotFoundError:
-        await auth_throttle.record_failure(*keys)
+        await _failed(keys)
         raise
     return _set_refresh_cookie(response, sign_in)
 
@@ -294,7 +300,7 @@ async def mfa_enable(
     try:
         codes = await mfa.enable(session, principal, data.code or "")
     except mfa.InvalidCodeError:
-        await auth_throttle.record_failure(*keys)
+        await _failed(keys)
         raise
     await auth_throttle.reset(success_key)
     return RecoveryCodesOut(recovery_codes=codes)
@@ -306,7 +312,7 @@ async def mfa_disable(data: MfaCodeIn, session: DB, principal: CurrentUser, requ
     try:
         await mfa.disable(session, principal, data.code, data.recovery_code)
     except mfa.InvalidCodeError:
-        await auth_throttle.record_failure(*keys)
+        await _failed(keys)
         raise
     await auth_throttle.reset(success_key)
 
@@ -319,7 +325,7 @@ async def mfa_recovery_codes(
     try:
         codes = await mfa.regenerate_recovery_codes(session, principal, data.code or "")
     except mfa.InvalidCodeError:
-        await auth_throttle.record_failure(*keys)
+        await _failed(keys)
         raise
     await auth_throttle.reset(success_key)
     return RecoveryCodesOut(recovery_codes=codes)
@@ -388,10 +394,10 @@ async def oidc_callback(
         email = oidc.verified_email(claims, settings.oidc_allowed_domains)
         sign_in = await service.sso_sign_in(email, _agent(request))
     except oidc.OidcError as exc:
-        await auth_throttle.record_failure(*keys)
+        await _failed(keys)
         return _sso_failure(exc.reason)
     except AuthenticationError as exc:
-        await auth_throttle.record_failure(*keys)
+        await _failed(keys)
         return _sso_failure(_reason(exc) or "sso_failed")
     out = RedirectResponse(
         # The fragment never reaches a server; the SPA keeps the CSRF token and asks for an access token.

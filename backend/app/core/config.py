@@ -180,6 +180,18 @@ class Settings(BaseSettings):
     fx_ecb_url: str = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
     fx_timeout_seconds: float = Field(default=10, gt=0, le=60)
 
+    # --- Observability (docs/runbook.md) ----------------------------------------------------------
+    # GET /api/v1/metrics (Prometheus). In production it answers only with this bearer token, and is
+    # off when no token is set.
+    metrics_enabled: bool = True
+    metrics_token: str | None = None
+    worker_metrics_port: int = Field(default=0, ge=0, le=65535)  # 0 = the worker exposes no metrics
+    # OpenTelemetry traces over OTLP/HTTP to a collector. Off by default.
+    otel_enabled: bool = False
+    otel_exporter_otlp_endpoint: str = "http://127.0.0.1:4318"
+    otel_service_name: str = "procurax-api"
+    otel_sample_ratio: float = Field(default=1.0, ge=0, le=1)
+
     tesseract_path: str | None = None
     pdftoppm_path: str | None = None
     # Directory containing *.traineddata (sets TESSDATA_PREFIX for the OCR subprocess).

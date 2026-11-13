@@ -19,6 +19,7 @@ from sqlalchemy import ColumnElement, and_, exists, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.core import metrics
 from app.core.db import utcnow
 from app.core.errors import BusinessRuleViolation, ConflictError, NotFoundError, PermissionDeniedError
 from app.core.principal import Principal
@@ -654,6 +655,7 @@ async def submit(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) 
                 ]
             },
         )
+    metrics.POLICY_OUTCOMES.labels(evaluation.outcome).inc()
     await session.commit()
     return pr
 
@@ -780,6 +782,7 @@ async def approve(
                 title=pr.title,
                 **outbox.money_facts(pr.estimated_total, pr.currency),
             )
+    metrics.APPROVAL_DECISIONS.labels("approve").inc()
     await session.commit()
     return pr
 
@@ -829,6 +832,7 @@ async def reject(
         reason=comment,
         role=step.approver_role,
     )
+    metrics.APPROVAL_DECISIONS.labels("reject").inc()
     await session.commit()
     return pr
 

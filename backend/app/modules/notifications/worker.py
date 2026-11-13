@@ -27,7 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import crypto
+from app.core import crypto, metrics
 from app.core.config import Settings, get_settings
 from app.core.db import system_session, utcnow
 from app.domain.notifications import (
@@ -331,11 +331,13 @@ async def deliver_batch(
             delivery.sent_at = now
             delivery.last_error = None
             counts["sent"] += 1
+            metrics.NOTIFICATION_DELIVERIES.labels(delivery.channel, "sent").inc()
         except Exception as exc:  # noqa: BLE001 - transport errors are recorded and retried
             delivery.last_error = _error_text(exc)
             if is_dead(delivery.attempts, settings.notification_max_attempts):
                 delivery.status = "dead"
                 counts["dead"] += 1
+                metrics.NOTIFICATION_DELIVERIES.labels(delivery.channel, "dead").inc()
                 logger.error(
                     "notification_dead_lettered",
                     extra={
@@ -347,6 +349,7 @@ async def deliver_batch(
             else:
                 delivery.next_attempt_at = now + backoff(delivery.attempts, key=delivery.delivery_key)
                 counts["retried"] += 1
+                metrics.NOTIFICATION_DELIVERIES.labels(delivery.channel, "retry").inc()
     await session.commit()
     return counts
 
