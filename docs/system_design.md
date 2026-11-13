@@ -235,19 +235,19 @@ writes will follow the same outbox pattern.
 
 | Control | Implementation |
 |---|---|
-| Authentication | Argon2id password hashes; HS256 JWT (60 min) with `sub`, `org`, `typ`, `jti`; uniform "invalid e-mail or password" plus a dummy-hash check against user enumeration |
-| Session hardening *(P18)* | Refresh token in an httpOnly cookie, in-memory access token, rotation and revocation, MFA/SSO |
+| Authentication | Argon2id password hashes; optional TOTP second step; optional OpenID Connect SSO for existing users; uniform "invalid e-mail or password" plus a dummy-hash check against user enumeration ([security.md](security.md)) |
+| Sessions | HS256 access JWT (15 min, in memory, with the session id) plus a rotating refresh token in an HttpOnly `SameSite=Strict` cookie; reuse detection; CSRF header + Origin check on the cookie endpoints; revocation on sign-out, deactivation and MFA reset (ADR-019) |
 | Authorisation | Permission guards per endpoint plus row-level visibility clause; 404 for invisible rows |
-| Tenant isolation | App scoping + RLS with `FORCE ROW LEVEL SECURITY`. The runtime role is neither owner nor superuser. The bypass is explicit (`system_session`) and used only for login, invitation acceptance and platform-admin tenant listing. |
+| Tenant isolation | App scoping + RLS with `FORCE ROW LEVEL SECURITY`. The runtime role is neither owner nor superuser. The bypass is explicit (`system_session`) and used only for sign-in (password, MFA, SSO, refresh), invitation acceptance, worker sweeps and platform-admin tenant listing. |
 | Least privilege (DB) | Runtime role: DML only; `audit_logs` INSERT/SELECT only; RBAC catalogue read-only; no access to `alembic_version` |
 | Input validation | Pydantic schemas with bounds, patterns and enum types; DB CHECK constraints as the last line |
 | Secrets | Env vars; startup refuses the default JWT secret in `prod`; `.env` ignored by git |
-| Headers | `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, COOP; strict CORS allow-list, no credentials |
+| Headers | `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, COOP; CSP `default-src 'self'`; strict CORS allow-list (credentials only for explicit origins) |
 | Invitations | 256-bit random tokens, stored as SHA-256, single use, 72 h expiry, revocable |
 | Invoice files | Accepted only as PDF/PNG/JPEG/TIFF whose bytes match the extension, ≤ 18 MiB, PDFs 1–10 pages and unencrypted; stored under an application-generated tenant-prefixed key (never the uploaded name); SHA-256 recorded and re-checked on scan and on streamed download; infected or still-scanning files cannot be downloaded or block payment; immutable once stored (trigger) |
 | Outbound webhooks | Tenant-supplied URLs must be https on an allow-listed Slack/Microsoft host (no credentials, default port), checked on save and again before every post (SSRF); stored encrypted (Fernet, key derived from `PROCURAX_DATA_ENCRYPTION_KEY`, rotation supported); never returned by the API |
 | SQL injection | ORM / bound parameters everywhere. The only interpolated DDL identifier (the role name in the migration) is regex-validated. |
-| Rate limiting *(P18)* | Login and invitation endpoints first (Redis token bucket) |
+| Rate limiting | Failed sign-in, MFA, invitation and SSO attempts counted in PostgreSQL, shared by all replicas (ADR-021) |
 | AI-specific *(planned)* | Prompt-injection isolation for retrieved text, tenant-aware retrieval via RLS, tool allow-list, read-only SQL role, output validation |
 
 ## 10. Multi-tenancy model (ADR-004)
@@ -475,3 +475,34 @@ the runtime role), so a document is never exported twice and a file can be downl
 *Alternatives:* push to an ERP API through the outbox (vendor-specific and needs credentials; possible
 later on the same markers); files in object storage (bounded batches of at most 2,000 entries keep the
 row small). *Consequences:* a human imports and posts; nothing in ProcuraX writes to a ledger.
+
+**ADR-019 Sessions: short in-memory access token, rotating HttpOnly refresh cookie, CSRF by header.**
+*Context:* the 60-minute access token sat in `sessionStorage`, readable by any script on the page, with no
+way to revoke it. *Decision:* access tokens live 15 minutes in memory and carry the session id; a 256-bit
+refresh token in an HttpOnly, `SameSite=Strict` cookie scoped to `/api/v1/auth` renews them and is rotated on
+every use (hash stored, families of tokens, reuse after a 30-second grace revokes the family). The two
+cookie endpoints require an `X-CSRF-Token` (HMAC of the session id, returned in the JSON body) and an allowed
+`Origin`. The SPA and API share a site in every topology (Vite proxy, nginx, Netlify proxy to Render).
+*Alternatives:* tokens in `localStorage` (readable by XSS, no revocation); server sessions only (a lookup
+per request anyway, but no stateless access path for workers); a cross-site cookie with `SameSite=None`
+(blocked by Safari's third-party-cookie rules). *Consequences:* signing out, deactivation and an MFA reset
+take effect at the next request; a reload costs one refresh call; the Netlify proxy must be verified after
+deployment.
+
+**ADR-020 MFA is local TOTP; SSO is OpenID Connect for existing users only.** *Context:* enterprise tenants
+expect MFA and SSO; ProcuraX is not an identity provider. *Decision:* RFC 6238 TOTP implemented in the pure
+domain (no dependency, RFC test vectors), secrets encrypted with the data key, single-use recovery codes
+stored as peppered HMACs, admin reset with sign-out. OIDC authorization code flow with PKCE against one
+configured provider; the ID token is verified against the provider's JWKS; only an existing active user with
+a verified matching e-mail signs in, and the IdP's own MFA applies to SSO sign-ins. *Alternatives:* WebAuthn
+(stronger, more UI and browser work; next step); SAML (heavier, needed by some enterprises); just-in-time
+provisioning from SSO (would bypass the invitation and role assignment). *Consequences:* no accounts appear
+from an IdP; MFA is opt-in per user (organisation enforcement is open); tested against a local provider
+stand-in only until a real tenant is available.
+
+**ADR-021 Brute-force counters live in PostgreSQL.** *Context:* the failed-login throttle was in-process,
+so each replica (and each restart) had its own count. *Decision:* a small `auth_throttle` table of hashed
+keys and time buckets, written with an upsert and pruned as it goes; limits per address + account, per
+address and per account. *Alternatives:* Redis (another service, ADR-013 again); the platform's edge rate
+limiting (not available on the free tiers; can be added in front). *Consequences:* one extra write per
+failed attempt, none for successful ones; counts survive restarts and are shared by replicas.

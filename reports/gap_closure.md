@@ -107,6 +107,24 @@ migrations round trip + `alembic check`, `gen_docs`, `check_doc_claims` (18 ADRs
 `npm audit`, `oxlint`, build: all passed; `ruff format` flagged one new test file on the first run, fixed
 and re-checked.
 
-## Phases 6–10
+## Phase 6: security hardening (branch `gaps/phase-6-security`, notes: [prs/phase-6.md](prs/phase-6.md))
+
+| Gap | Status | Verified by | Remaining |
+|---|---|---|---|
+| Refresh token in an HttpOnly cookie, in-memory access token, rotation and revocation | ✅ | API: cookie attributes, rotation, reuse detection revokes the family, revoked session ends its access token, sign-out, revoke others, deactivation; Vitest: memory-only token, renewal on 401, resume after reload | — |
+| CSRF protection for cookie endpoints | ✅ | API: missing/wrong `X-CSRF-Token` → 401, foreign `Origin` → 403 | — |
+| TOTP MFA with recovery codes | ✅ | RFC 6238 vectors; API: enrolment, two-step sign-in, replay refused, recovery code single use, throttled wrong codes, admin reset; Vitest: sign-in code step, Security page | Opt-in per user; no per-organisation enforcement, no WebAuthn |
+| OIDC SSO | 🟡 | Full code + PKCE flow against a local provider stand-in (real HTTP, RS256 ID tokens): success and seven refusal cases | **Not run against a real identity provider** (needs your IdP tenant and client credentials) |
+| Rate limiting shared through PostgreSQL | ✅ | Two throttle instances share counts; login and MFA throttles over HTTP; keys stored hashed | Per-address keys rely on forwarded headers that clients can forge (per-account limit still applies) |
+| docs/security.md (threat model) | ✅ | Controls listed with test status; STRIDE with residual risks | No external penetration test |
+| RLS test per new table | ✅ | `auth_sessions`: tenant-scoped, nothing without context, cross-tenant insert rejected, no DELETE | `auth_throttle` holds no tenant data (no RLS, documented) |
+| Live deployment topology for the cookie | 🟡 | Netlify now proxies `/api/*` to Render so the cookie is first-party; Vite and nginx set-ups already same-origin | **Not verified on the live site** until you deploy |
+| *Found:* Phase 5 reason codes had no Japanese wording | ✅ | Added with the Phase 6 codes; locale tests pass | — |
+
+Full check list: **353 backend tests passed, 1 skipped** (opt-in real ClamAV), **76 frontend tests**,
+migrations round trip + `alembic check`, `gen_docs`, `check_doc_claims` (21 ADRs), `pip-audit`, `npm audit`,
+`oxlint`, build: all passed on the first full run.
+
+## Phases 7–10
 
 Not started. Rows are added when each phase begins.

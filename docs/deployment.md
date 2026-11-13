@@ -80,11 +80,13 @@ service as a Blueprint, an alternative to these dashboard steps.
 [`netlify.toml`](../netlify.toml) (base `frontend`, command `npm run build`, publish `dist`, Node 22,
 SPA rewrite, security headers), so leave the build fields as detected.
 
-The API address is set in `netlify.toml` (`VITE_API_BASE_URL`, currently
-`https://procurax-mod8.onrender.com/api/v1`) together with a CSP that allows only that origin. It is not a
-secret. If your Render URL differs, change both lines in `netlify.toml` and push; Netlify rebuilds.
-Then set the API's `PROCURAX_PUBLIC_APP_URL` (step 3) to the exact Netlify URL (`https://…netlify.app`,
-no trailing slash). It is also the only browser origin the API's CORS policy allows.
+Netlify proxies `/api/*` to the API on Render (the first rule in `netlify.toml`, currently
+`https://procurax-mod8.onrender.com`), and the SPA calls `/api/v1` on its own site. One site for the
+browser keeps the sign-in cookie first-party (see [security.md](security.md)). If your Render URL differs,
+change that rule and push; Netlify rebuilds. Then set the API's `PROCURAX_PUBLIC_APP_URL` (step 3) to the
+exact Netlify URL (`https://…netlify.app`, no trailing slash); it is also the only browser origin the API's
+CORS policy allows. Netlify's proxy waits a limited time for an answer, so the first request after Render's
+free instance has slept can fail once; the page retries.
 
 Netlify rebuilds the site on every push to `main` by itself; no deploy hook is needed.
 
@@ -172,6 +174,22 @@ ECB's euro reference rates instead (free, no key, published on ECB working days)
 The ECB publishes these rates for information only, so keep manual rates if your accounting policy uses your
 bank's rates (a manual rate wins on the same day).
 
+## Single sign-on (optional)
+
+Register ProcuraX as a web application with your identity provider (Microsoft Entra ID, Google Workspace,
+Okta, Keycloak, ...): redirect URI `https://<your web host>/api/v1/auth/oidc/callback`, scopes
+`openid email profile`. Then set `PROCURAX_OIDC_ENABLED=true`, `PROCURAX_OIDC_ISSUER` (the issuer URL, e.g.
+`https://login.microsoftonline.com/<tenant-id>/v2.0`), `PROCURAX_OIDC_CLIENT_ID`,
+`PROCURAX_OIDC_CLIENT_SECRET`, `PROCURAX_OIDC_REDIRECT_URI` and optionally `PROCURAX_OIDC_DISPLAY_NAME` and
+`PROCURAX_OIDC_ALLOWED_DOMAINS`. Production refuses to start with the flag on and a setting missing. Only
+users who already exist in ProcuraX (invited) and whose verified e-mail matches can sign in.
+
+## Two-factor sign-in
+
+Users turn it on under **Security settings**. It needs `PROCURAX_DATA_ENCRYPTION_KEY` (Render generates
+one); keep that key stable, or list the old one after the new one when rotating, or existing secrets become
+unreadable.
+
 ## Journal export
 
 Set the ledger accounts on **Journal export** (organisation admin). Finance managers then export matched
@@ -186,7 +204,8 @@ downloadable. Nothing is posted to an ERP automatically.
 | Render log: `PROCURAX_JWT_SECRET must be set` or `…must use HTTPS` | Environment variables missing | Complete the step 3 Environment table |
 | Render deploy fails on `/ready` | Wrong runtime DB string, or `procurax_app` missing | Re-check step 2; the Render log shows the database error |
 | API errors such as `relation "…" does not exist` | Migrations not run | Add the step 5 secrets and run **Actions → Deploy** |
-| Web shows "API is not reachable" | `VITE_API_BASE_URL` in `netlify.toml` points elsewhere | Fix it (and the CSP line) in `netlify.toml` and push |
+| Web shows "API is not reachable" | The `/api/*` proxy rule in `netlify.toml` points elsewhere, or Render is still waking | Fix the rule and push, or wait a minute and reload |
+| Signed out after every reload | The SPA and API are on different sites and the browser blocks the cookie | Keep the Netlify `/api` proxy (recommended), or set `PROCURAX_REFRESH_COOKIE_SAMESITE=none` |
 | Browser console shows a CORS error | `PROCURAX_PUBLIC_APP_URL` differs from the Netlify URL | Set it exactly (https, no trailing slash); Render redeploys on save |
 | Login page shows no personas | Demo tenant not created | Run **Demo maintenance** with *Reset the demo tenant* ticked |
 

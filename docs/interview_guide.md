@@ -50,6 +50,10 @@ Use this as a discussion guide, not a script. The client case is fictional. Sepa
 
 **How does ProcuraX hand accounting to the ERP?** As a file, on purpose: balanced journal entries for matched and paid invoices, CSV or JSON, which finance imports and posts. Each export locks and marks the documents it includes, so nothing is exported twice, and the file is kept with its hash. An API push can reuse the same markers later. See ADR-018.
 
+**How are sessions secured?** The access token lives 15 minutes in memory and names its session; the session itself is a rotating refresh token in an HttpOnly, SameSite=Strict cookie that only the auth endpoints receive. Every refresh replaces it, and an old token used again revokes the whole family, which catches a stolen copy. The cookie endpoints also need a CSRF header and an allowed Origin. Sign-out, deactivation and an MFA reset end access at the next request. See ADR-019 and docs/security.md.
+
+**Why not create users from SSO?** Roles, reporting lines and approval limits come from the invitation; an identity provider only proves who someone is. So SSO signs in existing, active users whose verified e-mail matches, and an administrator still invites people. See ADR-020.
+
 **How is the Japanese UI built?** The API stays language-neutral (error codes and a `reason` code on business-rule refusals) and the SPA owns the wording through i18next. Keys are typed, so a missing translation fails the build. Rule explanations are rebuilt from each rule hit's structured evidence rather than translating stored English sentences, and dates, numbers and ¥ amounts use `Intl` with the ja-JP locale. The language follows the user across devices (`users.locale`). See ADR-012.
 
 ## AI
