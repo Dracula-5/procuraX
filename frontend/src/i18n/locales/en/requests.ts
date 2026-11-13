@@ -43,5 +43,7 @@ export const requestForm = {
   lineCount: "Lines",
   estimatedTotal: "Estimated total",
   rounding: "Final amounts are rounded to {{currency}} minor units by the server.",
+  currency: "Currency",
+  currencyHint: "Another currency is converted to {{base}} at the latest recorded rate when you submit; without a rate the request is blocked (VAL-004).",
   saveDraft: "Save draft",
 };

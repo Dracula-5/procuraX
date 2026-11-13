@@ -100,7 +100,10 @@ export const labels = {
       message: "Emergency purchases need a justification of at least {{required}} characters ({{chars}} given).",
     },
     "VAL-004": {
-      description: "Request currency must match the policy currency (multi-currency approval is future scope).", title: "Currency mismatch", message: "Request currency {{requestCurrency}} differs from policy currency {{policyCurrency}}." },
+      description: "A request in another currency needs a recorded exchange rate to the policy currency; amounts are then compared in the policy currency.",
+      title: "No exchange rate",
+      message: "No exchange rate from {{requestCurrency}} to the policy currency {{policyCurrency}} is recorded.",
+    },
     "VEN-001": {
       description: "Purchases from blocked or suspended vendors are not allowed.", title: "Vendor blocked or suspended", message: "The vendor is {{vendorStatus}}; choose another vendor." },
     "VEN-002": {
@@ -136,6 +139,12 @@ export const labels = {
       description: "Recent requests in the same category, combined with this one, cross an approval threshold that each stays under individually.",
       title: "Possible split purchase",
       message: "{{count}} recent request(s) in this category plus this one total {{combined}}, above the {{threshold}} threshold each stays under.",
+    },
+    "CON-001": {
+      description: "The purchase would take spend under the vendor's contract past its value cap (or the cap's currency has no exchange rate); procurement must review.",
+      title: "Contract value cap exceeded",
+      message: "Contract {{contract}}: {{committed}} already committed plus {{amount}} exceeds the cap {{threshold}}.",
+      messageNoRate: "Contract {{contract}}'s cap is in {{capCurrency}}, which has no exchange rate, so it cannot be checked.",
     },
     "EMG-001": {
       description: "Flagged for retrospective procurement review.", title: "Emergency purchase", message: "Emergency purchase will be reviewed retrospectively by procurement." },
@@ -196,5 +205,17 @@ export const labels = {
     "invitation.revoked": "Invitation revoked",
     "procurement_knowledge.version_added": "Guideline version added",
     "procurement_knowledge.deactivated": "Guideline deactivated",
+    "contract.created": "Contract drafted",
+    "contract.updated": "Contract draft updated",
+    "contract.activated": "Contract activated",
+    "contract.terminated": "Contract terminated",
+    "contract.expired": "Contract expired",
+    "contract.document_attached": "Signed contract attached",
+    "contract.document_refused": "Contract file refused by the virus scanner",
+    "exchange_rate.set": "Exchange rate recorded",
+    "exchange_rate.refreshed": "ECB reference rates recorded",
+    "ledger.settings_changed": "Ledger accounts updated",
+    "ledger.mappings_changed": "Expense account mappings updated",
+    "journal.exported": "Journal exported",
   },
 };

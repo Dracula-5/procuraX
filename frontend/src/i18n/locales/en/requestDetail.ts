@@ -35,6 +35,10 @@ export const requestDetail = {
   due: " · due {{when}}",
   decidedBy: " · {{status}} by {{name}} {{when}}",
   policyEngine: "Policy engine (deterministic)",
+  baseAmount: "In {{currency}}",
+  fxRate: "1 {{currency}} = {{rate}} {{base}} ({{source}}, {{date}})",
+  fxPending: "Converted to {{base}} when submitted",
+  contract: "Contract",
 };
 
 export const policyPanel = {

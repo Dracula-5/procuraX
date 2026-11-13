@@ -26,6 +26,11 @@ export const notifications: typeof en = {
       title: "支払承認待ち：{{invoiceNumber}}",
       body: "請求書 {{invoiceNumber}} の支払 {{amount}} が経理の承認を待っています。",
     },
+    "contract.expiring": {
+      name: "契約期限が近い",
+      title: "契約期限が近づいています：{{contractNumber}}",
+      body: "{{vendor}} との{{title}}は {{endsOn}} に終了します（残り {{daysLeft}} 日）。更新または新たな調達をご検討ください。",
+    },
   },
   prefs: {
     title: "通知の設定",

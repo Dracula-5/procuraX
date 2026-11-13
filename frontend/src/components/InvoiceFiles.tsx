@@ -3,6 +3,7 @@ import { Download, Paperclip } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
+import { downloadStored, toBase64 } from "../lib/files";
 import { date, number } from "../lib/format";
 import { Badge, Button, Card, EmptyState, ErrorNotice, Field, Select, Spinner, type Tone } from "./ui";
 
@@ -22,22 +23,6 @@ type StoredFile = {
 };
 
 const SCAN_TONE: Record<StoredFile["scan_status"], Tone> = { pending: "info", clean: "ok", infected: "danger", not_scanned: "warn" };
-
-async function toBase64(file: File): Promise<string> {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = "";
-  for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-  return btoa(binary);
-}
-
-function saveBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
 
 /** Source files of an invoice: stored once (with SHA-256), virus-scanned, attached permanently. */
 export function InvoiceFiles({ invoices, canUpload }: { invoices: InvoiceRef[]; canUpload: boolean }) {
@@ -62,16 +47,7 @@ export function InvoiceFiles({ invoices, canUpload }: { invoices: InvoiceRef[]; 
     },
   });
   const download = useMutation({
-    mutationFn: async (doc: StoredFile) => {
-      // Object storage answers with a short-lived signed link; local storage streams through the API.
-      const blob = await api.blob(`/invoice-documents/${doc.id}/download`, { mode: "link" });
-      if (blob.type.startsWith("application/json")) {
-        const { url } = JSON.parse(await blob.text()) as { url: string };
-        window.open(url, "_blank", "noopener");
-      } else {
-        saveBlob(blob, doc.original_filename);
-      }
-    },
+    mutationFn: (doc: StoredFile) => downloadStored(`/invoice-documents/${doc.id}/download`, doc.original_filename),
   });
 
   return (

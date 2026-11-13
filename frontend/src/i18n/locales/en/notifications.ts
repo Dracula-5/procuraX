@@ -24,6 +24,11 @@ export const notifications = {
       title: "Payment awaiting approval: {{invoiceNumber}}",
       body: "A payment of {{amount}} for invoice {{invoiceNumber}} is waiting for finance approval.",
     },
+    "contract.expiring": {
+      name: "Contract ending soon",
+      title: "Contract ending soon: {{contractNumber}}",
+      body: "{{title}} with {{vendor}} ends on {{endsOn}} ({{daysLeft}} days). Renew it or plan a new sourcing event.",
+    },
   },
   prefs: {
     title: "Your notification settings",

@@ -9,6 +9,7 @@ import { PolicyPanel } from "../components/PolicyPanel";
 import { Button, Card, ErrorNotice, Field, PageHeader, Spinner, Table, Td, Textarea, Th } from "../components/ui";
 import { api } from "../lib/api";
 import { date, dateTime, money, relative } from "../lib/format";
+import { useAuth } from "../auth/useAuth";
 import { useLabels } from "../lib/labels";
 import type { ApprovalStep, AuditEntry, PolicyEvaluation, PRDetail } from "../lib/types";
 
@@ -28,6 +29,8 @@ export function RequestDetail() {
   const [dialog, setDialog] = useState<Action | null>(null);
   const [comment, setComment] = useState("");
   const [preview, setPreview] = useState<PolicyEvaluation | null>(null);
+  const { me } = useAuth();
+  const baseCurrency = me?.organization.base_currency ?? "JPY";
 
   const pr = useQuery({ queryKey: ["request", id], queryFn: () => api.get<PRDetail>(`/purchase-requests/${id}`) });
   const timeline = useQuery({ queryKey: ["request", id, "timeline"], queryFn: () => api.get<AuditEntry[]>(`/purchase-requests/${id}/timeline`) });
@@ -145,7 +148,32 @@ export function RequestDetail() {
         <div className="space-y-6">
           <Card title={t("requestDetail.request")}>
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-              <Detail label={t("common.amount")} value={<span className="tabular text-base font-semibold">{money(r.estimated_total, r.currency)}</span>} />
+              <Detail
+                label={t("common.amount")}
+                value={
+                  <>
+                    <span className="tabular text-base font-semibold">{money(r.estimated_total, r.currency)}</span>
+                    {r.currency !== baseCurrency && (
+                      <span className="block text-xs text-muted">
+                        {r.base_amount !== null
+                          ? `${t("requestDetail.baseAmount", { currency: baseCurrency })}: ${money(r.base_amount, baseCurrency)}`
+                          : t("requestDetail.fxPending", { base: baseCurrency })}
+                        {r.fx_rate && (
+                          <span className="block">
+                            {t("requestDetail.fxRate", {
+                              currency: r.currency,
+                              rate: r.fx_rate,
+                              base: baseCurrency,
+                              source: t(`fx.sources.${r.fx_source === "ecb" ? "ecb" : "manual"}`),
+                              date: date(r.fx_rate_on),
+                            })}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </>
+                }
+              />
               <Detail label={t("common.category")} value={labels.category(r.category)} />
               <Detail label={t("requestForm.neededBy")} value={date(r.required_by)} />
               <Detail label={t("requests.col.requester")} value={r.requester_name} />
@@ -154,6 +182,7 @@ export function RequestDetail() {
               <Detail label={t("requestDetail.submitted")} value={dateTime(r.submitted_at)} />
               <Detail label={t("requestDetail.decided")} value={dateTime(r.decided_at)} />
               <Detail label={t("requestDetail.fiscalYear")} value={r.fiscal_year ? t("common.fy", { year: r.fiscal_year }) : "—"} />
+              {r.contract_number && <Detail label={t("requestDetail.contract")} value={r.contract_number} />}
             </dl>
             {r.justification && (
               <div className="mt-4 border-t border-border pt-3 text-sm">
@@ -233,9 +262,9 @@ export function RequestDetail() {
           >
             <ErrorNotice error={previewPolicy.error} />
             {preview ? (
-              <PolicyPanel evaluation={preview} currency={r.currency} preview />
+              <PolicyPanel evaluation={preview} currency={baseCurrency} preview />
             ) : r.policy_evaluation && r.status !== "draft" ? (
-              <PolicyPanel evaluation={r.policy_evaluation} currency={r.currency} />
+              <PolicyPanel evaluation={r.policy_evaluation} currency={baseCurrency} />
             ) : (
               <p className="text-sm text-muted">{t("requestDetail.notEvaluated")}</p>
             )}

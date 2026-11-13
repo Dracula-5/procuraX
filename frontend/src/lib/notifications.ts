@@ -2,7 +2,7 @@
 // stores only the event type and its facts (ADR-012), so switching language re-renders old ones too.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { money } from "./format";
+import { date, money } from "./format";
 import { useLabels } from "./labels";
 
 export const EVENT_TYPES = [
@@ -14,6 +14,7 @@ export const EVENT_TYPES = [
   "purchase_order.sent",
   "invoice.mismatch",
   "payment.awaiting_approval",
+  "contract.expiring",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -56,6 +57,10 @@ export function useNotificationText() {
         poNumber: str(p.po_number),
         invoiceNumber: str(p.invoice_number),
         matchStatus: p.match_status ? labels.matchStatus(str(p.match_status)) : "—",
+        contractNumber: str(p.contract_number),
+        vendor: str(p.vendor),
+        endsOn: p.ends_on ? date(str(p.ends_on)) : "—",
+        daysLeft: str(p.days_left),
       };
       const base = `notifications.events.${n.event_type}`;
       if (!i18n.exists(`${base}.title`)) return { title: n.event_type, body: "" };

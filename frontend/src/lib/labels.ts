@@ -68,7 +68,9 @@ export function makeLabels(t: TFunction, i18n: I18n) {
     const committed = num(e.committed);
     const requested = num(e.requested);
     const over = budget !== null && committed !== null && requested !== null ? m(String(Number(requested) - (Number(budget) - Number(committed)))) : "—";
-    return dynamic(t, i18n, `labels.rules.${hit.rule_id}.message`, hit.message, {
+    // CON-001 has a second sentence for a cap whose currency has no exchange rate.
+    const variant = hit.rule_id === "CON-001" && e.cap_currency && e.threshold === undefined ? "messageNoRate" : "message";
+    return dynamic(t, i18n, `labels.rules.${hit.rule_id}.${variant}`, hit.message, {
       amount: m(e.amount),
       threshold: m(e.threshold),
       combined: m(e.combined_amount),
@@ -85,6 +87,9 @@ export function makeLabels(t: TFunction, i18n: I18n) {
       days: e.window_days ?? "",
       count: related.length,
       related: related.join(", "),
+      contract: e.contract ?? "",
+      committed: m(e.committed),
+      capCurrency: e.cap_currency ?? "",
     });
   };
 

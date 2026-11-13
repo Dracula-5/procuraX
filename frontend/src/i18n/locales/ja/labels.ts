@@ -99,7 +99,10 @@ export const labels: typeof enLabels = {
       message: "緊急購入には {{required}} 文字以上の理由が必要です（現在 {{chars}} 文字）。",
     },
     "VAL-004": {
-      description: "申請通貨はポリシー通貨と一致する必要があります（多通貨承認は今後の対応範囲です）。", title: "通貨の不一致", message: "申請通貨 {{requestCurrency}} がポリシー通貨 {{policyCurrency}} と異なります。" },
+      description: "外貨建ての申請には、ポリシー通貨への為替レートの登録が必要です。金額はポリシー通貨に換算して判定されます。",
+      title: "為替レートなし",
+      message: "{{requestCurrency}} からポリシー通貨 {{policyCurrency}} への為替レートが登録されていません。",
+    },
     "VEN-001": {
       description: "取引停止中・一時停止中の取引先からの購入はできません。", title: "取引先が取引停止中", message: "取引先が「{{vendorStatus}}」のため選択できません。別の取引先を選んでください。" },
     "VEN-002": {
@@ -135,6 +138,12 @@ export const labels: typeof enLabels = {
       description: "同カテゴリの直近の申請と合わせると、各申請が個別には下回っている承認基準額を超えます。",
       title: "分割発注の可能性",
       message: "同カテゴリの直近の申請 {{count}} 件とこの申請の合計は {{combined}} で、各申請が下回っている基準額 {{threshold}} を超えます。",
+    },
+    "CON-001": {
+      description: "契約の使用額が契約上限額を超える（または上限額の通貨に為替レートがない）購入は、調達担当の確認が必要です。",
+      title: "契約上限額の超過",
+      message: "契約 {{contract}}：使用済み {{committed}} に今回の {{amount}} を加えると上限額 {{threshold}} を超えます。",
+      messageNoRate: "契約 {{contract}} の上限額は {{capCurrency}} 建てで為替レートがないため、確認できません。",
     },
     "EMG-001": {
       description: "事後に調達部門がレビューします。", title: "緊急購入", message: "緊急購入として、事後に調達部門がレビューします。" },
@@ -195,5 +204,17 @@ export const labels: typeof enLabels = {
     "invitation.revoked": "招待を取り消し",
     "procurement_knowledge.version_added": "ガイドラインの新版を追加",
     "procurement_knowledge.deactivated": "ガイドラインを無効化",
+    "contract.created": "契約の下書きを作成",
+    "contract.updated": "契約の下書きを更新",
+    "contract.activated": "契約を有効化",
+    "contract.terminated": "契約を解約",
+    "contract.expired": "契約が期限切れ",
+    "contract.document_attached": "署名済み契約書を添付",
+    "contract.document_refused": "契約書ファイルをウイルス検査で拒否",
+    "exchange_rate.set": "為替レートを登録",
+    "exchange_rate.refreshed": "ECB参照レートを登録",
+    "ledger.settings_changed": "勘定科目を更新",
+    "ledger.mappings_changed": "費用科目の対応表を更新",
+    "journal.exported": "仕訳を出力",
   },
 };

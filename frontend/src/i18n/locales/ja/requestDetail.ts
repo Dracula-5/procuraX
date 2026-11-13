@@ -37,6 +37,10 @@ export const requestDetail: typeof enRequestDetail = {
   due: "・期限 {{when}}",
   decidedBy: "・{{name}} が{{status}}（{{when}}）",
   policyEngine: "ポリシーエンジン（決定論的）",
+  baseAmount: "{{currency}} 換算",
+  fxRate: "1 {{currency}} = {{rate}} {{base}}（{{source}}、{{date}}）",
+  fxPending: "提出時に {{base}} へ換算されます",
+  contract: "契約",
 };
 
 export const policyPanel: typeof enPolicyPanel = {

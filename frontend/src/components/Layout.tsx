@@ -1,8 +1,11 @@
 import clsx from "clsx";
 import {
+  BookOpenCheck,
   Boxes,
   Building2,
   ClipboardCheck,
+  Coins,
+  FileSignature,
   FileText,
   Gauge,
   Landmark,
@@ -29,7 +32,7 @@ import { Badge, Spinner } from "./ui";
 
 interface NavItem {
   to: string;
-  key: "dashboard" | "requests" | "approvals" | "delegations" | "vendors" | "p2p" | "assistant" | "budgets" | "policy" | "paymentSettings" | "audit" | "users" | "structure";
+  key: "dashboard" | "requests" | "approvals" | "delegations" | "vendors" | "p2p" | "assistant" | "budgets" | "policy" | "paymentSettings" | "contracts" | "exchangeRates" | "ledger" | "audit" | "users" | "structure";
   icon: ReactNode;
   /** Shown when the user holds any of these permissions (none = everyone). */
   anyOf?: string[];
@@ -44,6 +47,7 @@ const NAV: { section: "procurement" | "finance" | "admin"; items: NavItem[] }[] 
       { to: "/app/approvals", key: "approvals", icon: <ClipboardCheck className="size-4" />, anyOf: ["approval:act"] },
       { to: "/app/approvals/delegations", key: "delegations", icon: <UserRoundCog className="size-4" />, anyOf: ["approval:act"] },
       { to: "/app/vendors", key: "vendors", icon: <Truck className="size-4" />, anyOf: ["vendor:read"] },
+      { to: "/app/contracts", key: "contracts", icon: <FileSignature className="size-4" />, anyOf: ["vendor:read"] },
       { to: "/app/p2p", key: "p2p", icon: <Boxes className="size-4" />, anyOf: ["purchase_request:read_all"] },
       { to: "/app/assistant", key: "assistant", icon: <MessageSquareText className="size-4" />, anyOf: ["analytics:read"] },
     ],
@@ -54,6 +58,8 @@ const NAV: { section: "procurement" | "finance" | "admin"; items: NavItem[] }[] 
       { to: "/app/budgets", key: "budgets", icon: <Wallet className="size-4" />, anyOf: ["budget:read"] },
       { to: "/app/policy", key: "policy", icon: <ShieldCheck className="size-4" />, anyOf: ["policy:read"] },
       { to: "/app/admin/payment-settings", key: "paymentSettings", icon: <Landmark className="size-4" />, anyOf: ["organization:manage", "payment:approve"] },
+      { to: "/app/fx", key: "exchangeRates", icon: <Coins className="size-4" />, anyOf: ["budget:read", "organization:manage"] },
+      { to: "/app/ledger", key: "ledger", icon: <BookOpenCheck className="size-4" />, anyOf: ["organization:manage", "payment:approve"] },
       { to: "/app/audit", key: "audit", icon: <ScrollText className="size-4" />, anyOf: ["audit:read"] },
     ],
   },

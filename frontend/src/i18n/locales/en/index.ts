@@ -1,5 +1,6 @@
 import { assistant, budgets, knowledge } from "./assistantBudgets";
 import { app, audit, auth, badges, bank, common, dashboard, delegations, errors, landing, layout, nav, notice, paymentSettings, policy, structure, users } from "./core";
+import { contracts, fx, ledger } from "./finance";
 import { inbox, vendors } from "./inboxVendors";
 import { labels } from "./labels";
 import { notifications } from "./notifications";
@@ -38,6 +39,9 @@ export const en = {
   errors,
   labels,
   notifications,
+  contracts,
+  fx,
+  ledger,
 };
 
 export type Messages = typeof en;

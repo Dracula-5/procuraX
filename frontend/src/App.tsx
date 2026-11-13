@@ -13,7 +13,10 @@ import { Register } from "./pages/Register";
 const Assistant = lazy(() => import("./pages/Assistant").then((m) => ({ default: m.Assistant })));
 const Audit = lazy(() => import("./pages/Audit").then((m) => ({ default: m.Audit })));
 const Budgets = lazy(() => import("./pages/Budgets").then((m) => ({ default: m.Budgets })));
+const Contracts = lazy(() => import("./pages/Contracts").then((m) => ({ default: m.Contracts })));
 const Dashboard = lazy(() => import("./pages/Dashboard").then((m) => ({ default: m.Dashboard })));
+const ExchangeRates = lazy(() => import("./pages/ExchangeRates").then((m) => ({ default: m.ExchangeRates })));
+const Ledger = lazy(() => import("./pages/Ledger").then((m) => ({ default: m.Ledger })));
 const Delegations = lazy(() => import("./pages/Delegations").then((m) => ({ default: m.Delegations })));
 const Inbox = lazy(() => import("./pages/Inbox").then((m) => ({ default: m.Inbox })));
 const Notifications = lazy(() => import("./pages/Notifications").then((m) => ({ default: m.Notifications })));
@@ -80,6 +83,9 @@ export default function App() {
         <Route path="approvals/delegations" element={<RequirePermission permission="approval:act"><Delegations /></RequirePermission>} />
         <Route path="vendors" element={<RequirePermission permission="vendor:read"><Vendors /></RequirePermission>} />
         <Route path="vendors/:id/bank-account" element={<RequirePermission permission="vendor:manage"><VendorBankAccount /></RequirePermission>} />
+        <Route path="contracts" element={<RequirePermission permission="vendor:read"><Contracts /></RequirePermission>} />
+        <Route path="fx" element={<ExchangeRates />} />
+        <Route path="ledger" element={<RequirePermission permission={["organization:manage", "payment:approve"]}><Ledger /></RequirePermission>} />
         <Route path="p2p" element={<RequirePermission permission="purchase_request:read_all"><PurchaseToPay /></RequirePermission>} />
         <Route path="assistant" element={<RequirePermission permission="analytics:read"><Assistant /></RequirePermission>} />
         <Route path="budgets" element={<RequirePermission permission="budget:read"><Budgets /></RequirePermission>} />

@@ -45,6 +45,8 @@ export interface PRSummary {
   category: string;
   currency: string;
   estimated_total: Money;
+  /** In the organisation's base currency; null for another currency until submitted. */
+  base_amount: Money | null;
   requester_id: string;
   requester_name: string | null;
   department_id: string | null;
@@ -116,6 +118,11 @@ export interface PolicyEvaluation {
 }
 
 export interface PRDetail extends PRSummary {
+  fx_rate: string | null;
+  fx_rate_on: string | null;
+  fx_source: string | null;
+  contract_id: string | null;
+  contract_number: string | null;
   justification: string;
   fiscal_year: number | null;
   policy_version: number | null;
@@ -305,3 +312,72 @@ export interface DemoPersona {
   roles: string[];
 }
 
+
+export interface ExchangeRate {
+  id: string;
+  currency: string;
+  rate: string;
+  valid_on: string;
+  source: "manual" | "ecb" | string;
+  created_at: string;
+}
+
+export interface RatesResponse {
+  base_currency: string;
+  supported_currencies: string[];
+  ecb_enabled: boolean;
+  latest: ExchangeRate[];
+  history: ExchangeRate[];
+}
+
+export type ContractState = "draft" | "active" | "expired" | "terminated";
+
+export interface Contract {
+  id: string;
+  number: string;
+  vendor_id: string;
+  vendor_name: string;
+  title: string;
+  categories: string[];
+  starts_on: string;
+  ends_on: string;
+  value_cap: Money | null;
+  currency: string;
+  status: ContractState;
+  terminated_reason: string | null;
+  committed: Money;
+  base_currency: string;
+  document: { filename: string; mime_type: string; sha256: string; scan_status: "clean" | "not_scanned" } | null;
+  expiry_reminded_at: string | null;
+  created_at: string;
+  updated_at: string;
+  allowed_actions: string[];
+}
+
+export interface LedgerSettings {
+  payable_account: string;
+  input_tax_account: string;
+  bank_account: string;
+  default_expense_account: string;
+}
+
+export interface AccountMapping {
+  id?: string;
+  category: string | null;
+  cost_center_id: string | null;
+  cost_center_code?: string | null;
+  expense_account: string;
+}
+
+export interface JournalExport {
+  id: string;
+  reference: string;
+  format: "csv" | "json";
+  filename: string;
+  invoice_count: number;
+  payment_count: number;
+  entry_count: number;
+  sha256: string;
+  created_by_id: string;
+  created_at: string;
+}

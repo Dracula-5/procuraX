@@ -8,7 +8,7 @@ import { Button, Card, ErrorNotice, Field, Input, PageHeader, Select, Spinner, T
 import { api, ApiError } from "../lib/api";
 import { money } from "../lib/format";
 import { CATEGORY_KEYS, useLabels } from "../lib/labels";
-import type { CostCenter, Department, Page, PRDetail, Vendor } from "../lib/types";
+import type { CostCenter, Department, Page, PRDetail, RatesResponse, Vendor } from "../lib/types";
 
 interface Line {
   description: string;
@@ -27,6 +27,7 @@ type FormState = {
   required_by: string;
   justification: string;
   is_emergency: boolean;
+  currency: string;
 };
 
 /** Loads the draft (when editing), then mounts the form with its initial values. */
@@ -54,7 +55,8 @@ function RequestFormBody({ existing }: { existing: PRDetail | null }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { me, can } = useAuth();
-  const currency = me?.organization.base_currency ?? "JPY";
+  const baseCurrency = me?.organization.base_currency ?? "JPY";
+  const rates = useQuery({ queryKey: ["fx-rates"], queryFn: () => api.get<RatesResponse>("/fx/rates") });
 
   const costCenters = useQuery({ queryKey: ["cost-centers"], queryFn: () => api.get<CostCenter[]>("/cost-centers") });
   const departments = useQuery({ queryKey: ["departments"], queryFn: () => api.get<Department[]>("/departments") });
@@ -72,7 +74,10 @@ function RequestFormBody({ existing }: { existing: PRDetail | null }) {
     required_by: existing?.required_by ?? "",
     justification: existing?.justification ?? "",
     is_emergency: existing?.is_emergency ?? false,
+    currency: existing?.currency ?? baseCurrency,
   }));
+  const currency = form.currency;
+  const currencies = [baseCurrency, ...(rates.data?.supported_currencies ?? []).filter((c) => c !== baseCurrency)];
   const [lines, setLines] = useState<Line[]>(() =>
     existing?.items.length
       ? existing.items.map((i) => ({ description: i.description, quantity: i.quantity, unit_price: i.unit_price, uom: i.uom }))
@@ -146,6 +151,15 @@ function RequestFormBody({ existing }: { existing: PRDetail | null }) {
               </Field>
               <Field label={t("requestForm.neededBy")}>
                 <Input type="date" value={form.required_by} onChange={set("required_by")} />
+              </Field>
+              <Field label={t("requestForm.currency")} hint={currency !== baseCurrency ? t("requestForm.currencyHint", { base: baseCurrency }) : undefined}>
+                <Select value={currency} onChange={set("currency")}>
+                  {currencies.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
               </Field>
               <Field label={t("requestForm.costCentre")} hint={t("requestForm.costCentreHint")}>
                 <Select value={costCenterId} onChange={set("cost_center_id")}>

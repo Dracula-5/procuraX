@@ -44,5 +44,7 @@ export const requestForm: typeof enRequestForm = {
   lineCount: "明細数",
   estimatedTotal: "見積合計",
   rounding: "最終金額はサーバー側で {{currency}} の最小単位に丸められます。",
+  currency: "通貨",
+  currencyHint: "外貨建ての場合、提出時に最新のレートで {{base}} に換算されます。レートがない場合はブロックされます（VAL-004）。",
   saveDraft: "下書きを保存",
 };
