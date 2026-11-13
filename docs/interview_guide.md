@@ -54,6 +54,10 @@ Use this as a discussion guide, not a script. The client case is fictional. Sepa
 
 **Why not create users from SSO?** Roles, reporting lines and approval limits come from the invitation; an identity provider only proves who someone is. So SSO signs in existing, active users whose verified e-mail matches, and an administrator still invites people. See ADR-020.
 
+**How do you know backups work?** By restoring them. A script dumps the database, restores it into a scratch database and checks the migration revision, row counts per table, forced row-level security on every tenant table, that the runtime role sees nothing without a tenant, and that the audit log is still append-only. CI runs it on every push; the nightly encrypted backup is restored into a throw-away database before it is kept. See ADR-023 and docs/runbook.md.
+
+**How is ProcuraX monitored?** Prometheus metrics with bounded labels (route template, not raw paths), queue depths read from the database at scrape time, eight alerts that each point to a runbook section, a provisioned Grafana dashboard, and optional OpenTelemetry traces whose IDs appear in the JSON logs. See ADR-022.
+
 **How is the Japanese UI built?** The API stays language-neutral (error codes and a `reason` code on business-rule refusals) and the SPA owns the wording through i18next. Keys are typed, so a missing translation fails the build. Rule explanations are rebuilt from each rule hit's structured evidence rather than translating stored English sentences, and dates, numbers and ¥ amounts use `Intl` with the ja-JP locale. The language follows the user across devices (`users.locale`). See ADR-012.
 
 ## AI

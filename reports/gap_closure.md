@@ -125,6 +125,21 @@ Full check list: **353 backend tests passed, 1 skipped** (opt-in real ClamAV), *
 migrations round trip + `alembic check`, `gen_docs`, `check_doc_claims` (21 ADRs), `pip-audit`, `npm audit`,
 `oxlint`, build: all passed on the first full run.
 
-## Phases 7–10
+## Phase 7: observability and operations (branch `gaps/phase-7-observability`, notes: [prs/phase-7.md](prs/phase-7.md))
+
+| Gap | Status | Verified by | Remaining |
+|---|---|---|---|
+| `/metrics` (Prometheus) | ✅ | API tests (labels, counters, DB-read gauges, token rules); real scrape by Prometheus in the Docker stack | No hosted metrics backend for the live demo (needs an account) |
+| OpenTelemetry behind a flag | ✅ | In-memory exporter test (HTTP and SQL spans, trace id in logs); real traces from API and worker in Jaeger | Off by default; no hosted collector |
+| Grafana / Prometheus with dashboards and alerts | ✅ | Stack check: dashboard provisioned and answering a query; 8 alert rules loaded ([report](observability_check.json)) | Thresholds are starting points, no paging integration |
+| Backups and a real restore drill | ✅ drill / 🟡 nightly job | Real drill: 39 tables, 299 rows, all six checks passed ([report](restore_drill.json)); CI runs the drill on every push | The nightly encrypted backup workflow has not run (needs your owner URL and a passphrase) |
+| Runbook | ✅ | `docs/runbook.md`: a section for every alert, restore, deploy/rollback, secret rotation | On-call contacts to be filled in |
+| *Found:* SQLAlchemy instrumentation silently inactive on SQLAlchemy 2.1 | ✅ | Version check skipped with a comment; test asserts SQL spans | — |
+
+Full check list: **357 backend tests passed, 1 skipped** (opt-in real ClamAV), **76 frontend tests**,
+migrations round trip + `alembic check`, `gen_docs`, `check_doc_claims` (23 ADRs), `pip-audit`, `npm audit`,
+`oxlint`, build: all passed on the first full run.
+
+## Phases 8–10
 
 Not started. Rows are added when each phase begins.

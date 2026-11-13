@@ -190,6 +190,14 @@ Users turn it on under **Security settings**. It needs `PROCURAX_DATA_ENCRYPTION
 one); keep that key stable, or list the old one after the new one when rotating, or existing secrets become
 unreadable.
 
+## Metrics, tracing and backups
+
+`render.yaml` generates `PROCURAX_METRICS_TOKEN`; a Prometheus-compatible service (self-hosted, or a hosted
+one such as Grafana Cloud, which needs an account) scrapes `https://<web host>/api/v1/metrics` with
+`Authorization: Bearer <token>`. Without a token the endpoint is off in production. Tracing needs a
+collector: set `PROCURAX_OTEL_ENABLED=true` and `PROCURAX_OTEL_EXPORTER_OTLP_ENDPOINT`. Nightly encrypted
+backups: see [runbook.md](runbook.md#backups).
+
 ## Journal export
 
 Set the ledger accounts on **Journal export** (organisation admin). Finance managers then export matched

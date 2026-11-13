@@ -296,6 +296,7 @@ departments, cost centres, audit logs, inbox, timelines and cross-tenant referen
 | Business transaction fails | Its outbox row rolls back with it, so no notification describes a change that did not happen |
 | Object storage unavailable at upload | The upload fails before any row is written (bytes first, metadata second), so no row points at a missing object; a failed commit can leave an orphaned object, never a dangling row |
 | ClamAV down | Files stay `pending` (which blocks payment) and are retried with backoff; nothing is marked clean without a scan |
+| Data loss or corruption | Provider point-in-time recovery plus an independent nightly encrypted `pg_dump` (`backup.yml`, opt-in); the restore drill (`app.scripts.restore_drill`) restores a dump into a scratch database and checks revision, row counts, forced RLS on every tenant table, runtime-role isolation and the append-only audit log, in CI on every push (ADR-023, [runbook](runbook.md#restore)) |
 
 Note on the concurrency test: it drives two genuinely concurrent DB transactions. With the
 lock removed, it failed in 1 of 3 runs (the race is timing-dependent), so it detects the bug
@@ -303,12 +304,26 @@ probabilistically, not on every run.
 
 ## 13. Observability
 
-Implemented: one JSON log line per request (method, route template, status, duration, request
-ID); request ID echoed in responses and stored on audit rows; `/health` (liveness) and `/ready`
-(DB check).
+Implemented (ADR-022, [runbook](runbook.md)):
 
-Planned *(P19)*: Prometheus metrics (latency histograms per route, DB pool, queue depth, worker
-failures, AI latency, tokens and confidence), Grafana dashboards, OpenTelemetry traces.
+- One JSON log line per request (method, route template, status, duration, request ID, and the trace ID
+  when tracing is on); request ID echoed in responses and stored on audit rows; `/health` (liveness) and
+  `/ready` (DB check).
+- Prometheus metrics at `/api/v1/metrics` (bearer token in production, off without one): request count
+  and latency histogram per route *template* and status class, requests in flight, DB pool use, queue
+  gauges read from the database at scrape time (outbox backlog and oldest pending age, retrying and dead
+  deliveries, files waiting for a scan), and counters for policy outcomes, approval decisions, refused
+  sign-ins, deliveries, scans and worker cycles. The worker serves its own counters on
+  `PROCURAX_WORKER_METRICS_PORT`.
+- OpenTelemetry tracing behind `PROCURAX_OTEL_ENABLED` (off): FastAPI, SQLAlchemy and httpx spans for the API
+  and the worker, OTLP/HTTP export, no bodies, headers or SQL parameters recorded.
+- `docker compose -f docker-compose.stack.yml --profile observability up` adds Prometheus (with eight
+  alert rules, each linked to a runbook section), Grafana (provisioned "ProcuraX overview" dashboard) and
+  Jaeger. `scripts/observability_check.py` drove traffic through that stack and confirmed scrapes, alert
+  rules, dashboard queries and API + worker traces ([report](../reports/observability_check.json)).
+
+Not yet: AI latency, token and confidence metrics (Phase 8), a hosted metrics backend for the live demo
+(needs an account), SLO definitions agreed with a pilot customer.
 
 ## 14. Deployment *(P4, platform to be chosen)*
 
@@ -506,3 +521,24 @@ keys and time buckets, written with an upsert and pruned as it goes; limits per 
 address and per account. *Alternatives:* Redis (another service, ADR-013 again); the platform's edge rate
 limiting (not available on the free tiers; can be added in front). *Consequences:* one extra write per
 failed attempt, none for successful ones; counts survive restarts and are shared by replicas.
+
+**ADR-022 Observability: Prometheus pull metrics with bounded labels; tracing optional through OTLP.**
+*Context:* operators had logs and two health endpoints, nothing to alert on. *Decision:* `prometheus_client`
+in-process metrics exposed at `/api/v1/metrics` (token-protected in production), labelled by route
+template, method and status class only; queue depths are read from PostgreSQL at scrape time, so they are
+right whichever process does the work. Tracing uses OpenTelemetry with the standard FastAPI, SQLAlchemy and
+httpx instrumentations, exported over OTLP/HTTP to any collector, off by default. *Alternatives:* push
+metrics (StatsD; another daemon), vendor agents (lock-in, cost), tracing always on (cost and data volume on
+free tiers). *Consequences:* any Prometheus-compatible service can scrape it; counters are per process (the
+worker has its own endpoint); the SQLAlchemy instrumentation declares SQLAlchemy < 2.1, so its version check
+is skipped and a test proves the spans.
+
+**ADR-023 Backups are verified by restoring them.** *Context:* a backup that was never restored is a hope.
+*Decision:* provider point-in-time recovery for recent mistakes, plus an independent nightly
+`pg_dump --format=custom` that is restored into a throw-away PostgreSQL before it is encrypted (gpg AES-256)
+and kept 7 days; and a restore drill script that CI runs on every push (dump, restore into a scratch
+database, check revision, row counts, forced RLS and tenant policies, runtime-role isolation and the
+append-only audit log). *Alternatives:* trust the provider alone (no independent copy; one account
+compromise loses both); physical backups (not available on managed free tiers). *Consequences:* the
+nightly job needs the owner connection string and a passphrase as GitHub secrets and stays off until they
+exist; object storage relies on bucket versioning, with SHA-256 hashes in the database to verify files.
