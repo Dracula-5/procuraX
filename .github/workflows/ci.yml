@@ -67,6 +67,10 @@ jobs:
         run: |
           uv run alembic downgrade base
           uv run alembic upgrade head
+      - name: Backup and restore drill (dump, restore into a scratch database, integrity and RLS checks)
+        run: |
+          uv run python -m app.scripts.seed_demo
+          uv run python -m app.scripts.restore_drill --report restore_drill.json             --tool-prefix "docker run --rm -i --network host pgvector/pgvector:pg16"
       - name: Generated docs (RBAC matrix, policy reference, OpenAPI) are up to date
         run: uv run python -m app.scripts.gen_docs --check
       - name: README and docs state the same role, permission, rule and ADR counts as the code

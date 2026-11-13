@@ -54,6 +54,8 @@ services:
       # set PROCURAX_EMAIL_ENABLED, PROCURAX_SMTP_* and PROCURAX_WEBHOOKS_ENABLED in the dashboard.
       - key: PROCURAX_DATA_ENCRYPTION_KEY  # encrypts tenant webhook URLs; any 32+ character secret
         generateValue: true
+      - key: PROCURAX_METRICS_TOKEN  # bearer token for GET /api/v1/metrics (off in production without one)
+        generateValue: true
       - key: PROCURAX_OCR_LANGUAGES
         value: eng+jpn
       - key: PROCURAX_DB_POOL_SIZE  # Neon free allows a limited number of connections

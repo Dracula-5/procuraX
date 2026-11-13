@@ -1,0 +1,61 @@
+# Alert rules. Each alert names the runbook section to follow (docs/runbook.md).
+groups:
+  - name: procurax
+    rules:
+      - alert: ProcuraXApiDown
+        expr: up{job="procurax-api"} == 0
+        for: 2m
+        labels: {severity: page}
+        annotations:
+          summary: "The API is not answering metrics scrapes"
+          runbook: "docs/runbook.md#api-down"
+      - alert: ProcuraXHighErrorRate
+        expr: |
+          sum(rate(procurax_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(procurax_http_requests_total[5m])), 1e-9) > 0.05
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: "More than 5% of API requests fail with 5xx"
+          runbook: "docs/runbook.md#5xx-errors"
+      - alert: ProcuraXSlowRequests
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(procurax_http_request_duration_seconds_bucket[10m]))) > 1.5
+        for: 15m
+        labels: {severity: ticket}
+        annotations:
+          summary: "p95 API latency above 1.5 s"
+          runbook: "docs/runbook.md#slow-api"
+      - alert: ProcuraXOutboxStalled
+        expr: procurax_outbox_oldest_pending_age_seconds > 600
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: "Notifications are not being processed (oldest pending event > 10 min)"
+          runbook: "docs/runbook.md#worker-stalled"
+      - alert: ProcuraXDeadDeliveries
+        expr: increase(procurax_notification_deliveries_dead[1h]) > 0
+        labels: {severity: ticket}
+        annotations:
+          summary: "Notification deliveries gave up after their retries"
+          runbook: "docs/runbook.md#dead-deliveries"
+      - alert: ProcuraXScansBacklog
+        expr: procurax_documents_pending_scan > 20
+        for: 15m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Invoice files are waiting for a virus scan (payments on them are blocked)"
+          runbook: "docs/runbook.md#scanner-down"
+      - alert: ProcuraXDbPoolExhausted
+        expr: procurax_db_pool_connections_in_use >= 9
+        for: 5m
+        labels: {severity: ticket}
+        annotations:
+          summary: "The API is using (almost) every pooled database connection"
+          runbook: "docs/runbook.md#database-connections"
+      - alert: ProcuraXLoginAttack
+        expr: sum(increase(procurax_auth_failures_total[15m])) > 50
+        labels: {severity: ticket}
+        annotations:
+          summary: "Many refused sign-ins in 15 minutes"
+          runbook: "docs/runbook.md#sign-in-attack"
