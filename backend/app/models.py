@@ -1,5 +1,6 @@
 """Imports every ORM model so metadata is complete (Alembic autogenerate, tests)."""
 
+from app.ai.models import AIPrediction, KnowledgeChunk
 from app.integrations.models import QualifiedInvoiceRegistryEntry
 from app.modules.audit.models import AuditLog
 from app.modules.contracts.models import Contract
@@ -64,6 +65,8 @@ TENANT_TABLES = [
     "payments",
     "approval_delegations",
     "procurement_knowledge_documents",
+    "knowledge_chunks",
+    "ai_predictions",
     "exchange_rates",
     "gl_account_mappings",
     "notification_outbox",
@@ -76,6 +79,8 @@ TENANT_TABLES = [
 
 __all__ = [
     "TENANT_TABLES",
+    "AIPrediction",
+    "KnowledgeChunk",
     "Approval",
     "ApprovalDelegation",
     "ApprovalPolicy",

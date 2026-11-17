@@ -19,7 +19,9 @@ from sqlalchemy import ColumnElement, and_, exists, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.ai import advisors
 from app.core import metrics
+from app.core.config import get_settings
 from app.core.db import utcnow
 from app.core.errors import BusinessRuleViolation, ConflictError, NotFoundError, PermissionDeniedError
 from app.core.principal import Principal
@@ -656,6 +658,9 @@ async def submit(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) 
             },
         )
     metrics.POLICY_OUTCOMES.labels(evaluation.outcome).inc()
+    if get_settings().ai_advisories_enabled:
+        # Recorded beside the request for reviewers; the decision above is already final (ADR-024).
+        await advisors.advise_on_submission(session, pr, principal.user_id)
     await session.commit()
     return pr
 

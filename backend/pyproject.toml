@@ -26,6 +26,9 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi>=0.51b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.51b0",
     "opentelemetry-instrumentation-httpx>=0.51b0",
+    "sqlglot>=26",
+    "pgvector>=0.3",
+    "anthropic>=0.70",
 ]
 
 [dependency-groups]

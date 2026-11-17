@@ -132,6 +132,8 @@ _TEARDOWN_ORDER = [
     "budgets",
     "invitations",
     "auth_sessions",
+    "ai_predictions",
+    "knowledge_chunks",
     "procurement_knowledge_documents",
     "contracts",
     "exchange_rates",

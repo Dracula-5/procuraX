@@ -192,6 +192,22 @@ class Settings(BaseSettings):
     otel_service_name: str = "procurax-api"
     otel_sample_ratio: float = Field(default=1.0, ge=0, le=1)
 
+    # --- AI (advisory only; docs/system_design.md ADR-024) -------------------------------------------
+    # replay: recorded answers only, no network (default). anthropic: Claude via the official SDK; costs
+    # money and needs ANTHROPIC_API_KEY (or an `ant` profile).
+    llm_provider: Literal["replay", "anthropic"] = "replay"
+    llm_model: str = "claude-opus-5-5"
+    llm_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
+    llm_max_tokens: int = Field(default=16000, ge=256, le=64000)
+    llm_timeout_seconds: float = Field(default=60, gt=0, le=600)
+    llm_replay_dir: str | None = None
+    llm_record: bool = False  # with the anthropic provider: also write answers to llm_replay_dir
+    # Knowledge retrieval. "bm25" is the default because it measured best on the NTA Q&A benchmark with the
+    # local hashing embedding (reports/rag_nta_invoice_qa.json); "hybrid" adds pgvector cosine by RRF and is
+    # meant for a semantic embedding model. Chunks and vectors are indexed either way.
+    retrieval_mode: Literal["bm25", "hybrid"] = "bm25"
+    ai_advisories_enabled: bool = True  # ML advisory flags on submitted requests (local, no network)
+
     tesseract_path: str | None = None
     pdftoppm_path: str | None = None
     # Directory containing *.traineddata (sets TESSDATA_PREFIX for the OCR subprocess).

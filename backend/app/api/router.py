@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.ai.router import router as ai_router
 from app.modules.audit.router import router as audit_router
 from app.modules.contracts.router import router as contracts_router
 from app.modules.documents.router import router as documents_router
@@ -36,5 +37,6 @@ for r in (
     documents_router,
     contracts_router,
     finance_router,
+    ai_router,
 ):
     api_router.include_router(r)
