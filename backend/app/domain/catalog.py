@@ -36,3 +36,10 @@ class ContractStatus(StrEnum):
     NONE = "none"
     ACTIVE = "active"
     EXPIRED = "expired"
+
+
+class Locale(StrEnum):
+    """UI languages. Stored per user; the API's own messages and error codes stay language-neutral."""
+
+    EN = "en"
+    JA = "ja"

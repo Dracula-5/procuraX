@@ -8,11 +8,13 @@ import uuid
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.core import metrics
 from app.core.request_context import set_request_context
 
 logger = logging.getLogger("procurax.access")
 
 _VALID_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
+_UNMETERED = {"/health", "/ready", "/api/v1/metrics"}
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -51,10 +53,21 @@ class RequestContextMiddleware:
                     headers.setdefault(key, value)
             await send(message)
 
+        metrics.HTTP_IN_PROGRESS.inc()
         try:
             await self.app(scope, receive, send_wrapper)
         finally:
+            metrics.HTTP_IN_PROGRESS.dec()
             route = scope.get("route")
+            elapsed = time.perf_counter() - start
+            # The route template keeps label cardinality bounded; unmatched paths share one label.
+            template = getattr(route, "path", None) or "unmatched"
+            if template not in _UNMETERED:
+                method = scope.get("method", "GET")
+                metrics.HTTP_REQUESTS.labels(
+                    method, template, metrics.status_class(status_holder["status"])
+                ).inc()
+                metrics.HTTP_LATENCY.labels(method, template).observe(elapsed)
             logger.info(
                 "request",
                 extra={

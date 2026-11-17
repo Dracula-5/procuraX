@@ -1,6 +1,5 @@
-# Netlify (free) hosts the React SPA; the API runs on Render. See docs/deployment.md.
-# VITE_API_BASE_URL is the public Render API address (not a secret). It is compiled into the
-# bundle at build time; change it here if the API moves, and Netlify rebuilds on push.
+# Netlify (free) hosts the React SPA; the API runs on Render and is proxied under /api. See
+# docs/deployment.md.
 
 [build]
   base = "frontend"          # all paths below are relative to this directory
@@ -9,7 +8,17 @@
 
 [build.environment]
   NODE_VERSION = "22"
-  VITE_API_BASE_URL = "https://procurax-mod8.onrender.com/api/v1"
+  # The SPA calls /api/v1 on its own site and Netlify forwards it to the API on Render (next rule). For
+  # the browser there is then one site: the sign-in cookie is first-party (SameSite=Strict, not blocked as
+  # a third-party cookie) and no CORS preflight is needed. See docs/security.md.
+  VITE_API_BASE_URL = "/api/v1"
+
+# Proxy the API through this site. Change the Render address here if the API moves.
+[[redirects]]
+  from = "/api/*"
+  to = "https://procurax-mod8.onrender.com/api/:splat"
+  status = 200
+  force = true
 
 # Client-side routes (/app, /purchase-to-pay, ...) all serve the SPA shell.
 [[redirects]]
@@ -23,8 +32,8 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    # The browser may call only this site and the ProcuraX API on Render.
-    Content-Security-Policy = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://procurax-mod8.onrender.com; frame-ancestors 'none'"
+    # The browser talks to this site only (the API is proxied above).
+    Content-Security-Policy = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'"
 
 [[headers]]
   for = "/assets/*"

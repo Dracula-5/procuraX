@@ -6,6 +6,8 @@ export interface AuthState {
   loading: boolean;
   signIn: (res: TokenResponse) => void;
   signOut: () => void;
+  /** Replace the cached profile after the user changes it (e.g. language preference). */
+  updateMe: (me: Me) => void;
   can: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
 }

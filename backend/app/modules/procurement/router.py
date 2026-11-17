@@ -2,24 +2,16 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel
-from sqlalchemy import or_, select
 
 from app.api.deps import DB, CurrentUser, requires
-from app.core.db import utcnow
-from app.core.errors import BusinessRuleViolation, ConflictError, NotFoundError
 from app.core.principal import Principal
 from app.domain.catalog import SpendCategory
 from app.domain.policy.models import PolicyEvaluation
 from app.domain.policy.rules import RULES
 from app.domain.rbac import Permission
 from app.domain.workflow.purchase_request import PRStatus
-from app.modules.audit import service as audit
 from app.modules.audit.schemas import AuditEntryOut
-from app.modules.identity.models import User, UserRole
 from app.modules.procurement import policy_service, service
-from app.modules.procurement.delegations import ApprovalDelegation
-from app.modules.procurement.models import Approval, PurchaseRequest
 from app.modules.procurement.schemas import (
     ApproveIn,
     CancelIn,
@@ -40,159 +32,6 @@ approvals_router = APIRouter(prefix="/approvals", tags=["approvals"])
 policy_router = APIRouter(prefix="/approval-policies", tags=["approval policy"])
 
 Requester = Annotated[Principal, Depends(requires(Permission.PR_CREATE))]
-
-
-class DelegationCreateIn(BaseModel):
-    approval_id: uuid.UUID
-    delegate_user_id: uuid.UUID
-
-
-@approvals_router.post("/delegations", status_code=status.HTTP_201_CREATED)
-async def delegate_approval(
-    data: DelegationCreateIn,
-    session: DB,
-    principal: Annotated[Principal, Depends(requires(Permission.APPROVAL_ACT))],
-) -> dict:
-    step = await session.scalar(
-        select(Approval)
-        .where(Approval.id == data.approval_id, Approval.org_id == principal.org_id)
-        .with_for_update()
-    )
-    if step is None:
-        raise NotFoundError("Approval step not found")
-    if step.assigned_user_id != principal.user_id:
-        raise BusinessRuleViolation("Only the named approver can delegate this step")
-    if step.status not in {"pending", "waiting"}:
-        raise BusinessRuleViolation("Only an undecided approval step can be delegated")
-    if data.delegate_user_id == principal.user_id:
-        raise BusinessRuleViolation("Choose another user to delegate this approval")
-    request = await session.scalar(
-        select(PurchaseRequest).where(
-            PurchaseRequest.id == step.purchase_request_id, PurchaseRequest.org_id == principal.org_id
-        )
-    )
-    if request is None or data.delegate_user_id == request.requester_id:
-        raise BusinessRuleViolation("The requester cannot be assigned as an approver")
-    delegate = await session.scalar(
-        select(User).where(
-            User.id == data.delegate_user_id,
-            User.org_id == principal.org_id,
-            User.is_active.is_(True),
-            User.deleted_at.is_(None),
-        )
-    )
-    role_match = await session.scalar(
-        select(UserRole.user_id).where(
-            UserRole.org_id == principal.org_id,
-            UserRole.user_id == data.delegate_user_id,
-            UserRole.role_key == step.approver_role,
-        )
-    )
-    if delegate is None or role_match is None:
-        raise BusinessRuleViolation("Delegate must be an active user with the required approver role")
-    if await session.scalar(select(ApprovalDelegation.id).where(ApprovalDelegation.approval_id == step.id)):
-        raise ConflictError("This approval step already has a delegation record")
-    now = utcnow()
-    prior_assignee = step.assigned_user_id
-    step.assigned_user_id = delegate.id
-    row = ApprovalDelegation(
-        org_id=principal.org_id,
-        approval_id=step.id,
-        delegator_id=principal.user_id,
-        delegate_id=delegate.id,
-        delegated_at=now,
-    )
-    session.add(row)
-    await audit.record(
-        session,
-        org_id=principal.org_id,
-        actor=principal,
-        action="approval.delegated",
-        entity_type="purchase_request",
-        entity_id=request.id,
-        summary=f"Approval delegated to {delegate.full_name}",
-        meta={
-            "approval_id": str(step.id),
-            "from_user_id": str(prior_assignee),
-            "to_user_id": str(delegate.id),
-        },
-    )
-    await session.commit()
-    return {
-        "id": row.id,
-        "approval_id": row.approval_id,
-        "delegator_id": row.delegator_id,
-        "delegate_id": row.delegate_id,
-        "delegated_at": row.delegated_at,
-    }
-
-
-@approvals_router.get("/delegations")
-async def list_delegations(
-    session: DB,
-    principal: Annotated[Principal, Depends(requires(Permission.APPROVAL_ACT))],
-) -> list[dict]:
-    rows = await session.scalars(
-        select(ApprovalDelegation)
-        .where(
-            ApprovalDelegation.org_id == principal.org_id,
-            or_(
-                ApprovalDelegation.delegator_id == principal.user_id,
-                ApprovalDelegation.delegate_id == principal.user_id,
-            ),
-        )
-        .order_by(ApprovalDelegation.created_at.desc())
-    )
-    return [
-        {
-            "id": r.id,
-            "approval_id": r.approval_id,
-            "delegator_id": r.delegator_id,
-            "delegate_id": r.delegate_id,
-            "delegated_at": r.delegated_at,
-            "revoked_at": r.revoked_at,
-        }
-        for r in rows
-    ]
-
-
-@approvals_router.post("/delegations/{delegation_id}/revoke")
-async def revoke_delegation(
-    delegation_id: uuid.UUID,
-    session: DB,
-    principal: Annotated[Principal, Depends(requires(Permission.APPROVAL_ACT))],
-) -> dict:
-    row = await session.scalar(
-        select(ApprovalDelegation)
-        .where(ApprovalDelegation.id == delegation_id, ApprovalDelegation.org_id == principal.org_id)
-        .with_for_update()
-    )
-    if row is None or row.delegator_id != principal.user_id:
-        raise NotFoundError("Approval delegation not found")
-    if row.revoked_at is not None:
-        raise ConflictError("This delegation has already been revoked")
-    step = await session.scalar(
-        select(Approval)
-        .where(Approval.id == row.approval_id, Approval.org_id == principal.org_id)
-        .with_for_update()
-    )
-    if step is None or step.status not in {"pending", "waiting"} or step.assigned_user_id != row.delegate_id:
-        raise BusinessRuleViolation("A delegation can only be revoked before the approval is decided")
-    now = utcnow()
-    step.assigned_user_id = row.delegator_id
-    row.revoked_at = now
-    await audit.record(
-        session,
-        org_id=principal.org_id,
-        actor=principal,
-        action="approval.delegation_revoked",
-        entity_type="purchase_request",
-        entity_id=step.purchase_request_id,
-        summary="Approval delegation revoked",
-        meta={"approval_id": str(step.id), "delegation_id": str(row.id)},
-    )
-    await session.commit()
-    return {"id": row.id, "approval_id": row.approval_id, "revoked_at": row.revoked_at}
 
 
 @router.get("", response_model=PRPage)

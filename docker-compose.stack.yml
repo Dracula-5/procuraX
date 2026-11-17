@@ -5,7 +5,8 @@
 #   open http://localhost:8088          (PROCURAX_WEB_PORT overrides the host port)
 #
 # Release order: db healthy → migrate (owner role, one-shot) → api (runtime role, RLS enforced)
-# → web (nginx: SPA + /api reverse proxy). Only the web port is published. Demo mode is off, as
+# and worker (notification outbox) → web (nginx: SPA + /api reverse proxy). E-mail goes to Mailpit
+# (http://localhost:8025); nothing is sent outside the machine. Only the web port is published. Demo mode is off, as
 # production settings require; register a tenant from the landing page.
 # Hosting still needs a platform decision: managed PostgreSQL replaces `db`, and TLS terminates
 # at the platform's load balancer in front of `web`.
@@ -18,6 +19,20 @@ x-api-env: &api-env
   PROCURAX_DEMO_MODE: "false"
   PROCURAX_PUBLIC_APP_URL: ${PROCURAX_PUBLIC_APP_URL:-https://procurax.example}
   PROCURAX_CORS_ORIGINS: '["${PROCURAX_PUBLIC_APP_URL:-https://procurax.example}"]'
+  PROCURAX_EMAIL_ENABLED: "true"
+  PROCURAX_SMTP_HOST: mailpit
+  PROCURAX_SMTP_PORT: "1025"
+  PROCURAX_STORAGE_BACKEND: s3
+  PROCURAX_S3_ENDPOINT_URL: http://object-storage:9000
+  PROCURAX_S3_ACCESS_KEY_ID: procurax
+  PROCURAX_S3_SECRET_ACCESS_KEY: procurax-dev-secret
+  # Presigned URLs would name the internal host; stream downloads through the API instead.
+  PROCURAX_S3_PRESIGN_DOWNLOADS: "false"
+  # Observability (docs/runbook.md). Prometheus in the `observability` profile scrapes with this token;
+  # set PROCURAX_OTEL_ENABLED=true to send traces to Jaeger in the same profile.
+  PROCURAX_METRICS_TOKEN: ${PROCURAX_METRICS_TOKEN:-local-metrics-token-change-me}
+  PROCURAX_OTEL_ENABLED: ${PROCURAX_OTEL_ENABLED:-false}
+  PROCURAX_OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4318
 
 services:
   db:
@@ -54,6 +69,44 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # Notification outbox worker: a separate process, as in production. Several can run at once.
+  worker:
+    image: procurax-api:local
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *api-env
+      PROCURAX_OTEL_SERVICE_NAME: procurax-worker
+      PROCURAX_WORKER_METRICS_PORT: "9101"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+
+  object-storage:
+    image: rustfs/rustfs:1.0.5
+    environment:
+      RUSTFS_ACCESS_KEY: procurax
+      RUSTFS_SECRET_KEY: procurax-dev-secret
+    volumes:
+      - procurax_stack_objects:/data
+
+  storage-init:
+    image: procurax-api:local
+    command: ["python", "-m", "app.scripts.init_storage"]
+    environment: *api-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      object-storage:
+        condition: service_started
+    restart: on-failure
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "${PROCURAX_MAILPIT_PORT:-8025}:8025"
+
   web:
     build: ./frontend
     image: procurax-web:local
@@ -63,5 +116,37 @@ services:
       api:
         condition: service_healthy
 
+  # --- Observability profile: docker compose -f docker-compose.stack.yml --profile observability up -d ---
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    profiles: ["observability"]
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "${PROCURAX_PROMETHEUS_PORT:-9090}:9090"
+
+  grafana:
+    image: grafana/grafana:12.2.1
+    profiles: ["observability"]
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"  # local only; never expose this port publicly
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${PROCURAX_GRAFANA_ADMIN_PASSWORD:-change-me-locally}
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "${PROCURAX_GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
+
+  jaeger:
+    image: jaegertracing/jaeger:2.11.0
+    profiles: ["observability"]
+    ports:
+      - "${PROCURAX_JAEGER_PORT:-16686}:16686"
+
 volumes:
+  procurax_stack_objects:
   procurax_stack_pg:

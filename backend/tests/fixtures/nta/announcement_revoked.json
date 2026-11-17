@@ -1,0 +1,13 @@
+{
+  "_note": "Registration revoked (disposalDate) on 2026-04-01. Fictional issuer.",
+  "lastUpdateDate": "2026-11-01",
+  "count": "2",
+  "divideNumber": "1",
+  "divideSize": "1",
+  "announcement": [
+    {"sequenceNumber": "1", "registratedNumber": "T1010401000002", "process": "01", "latest": "0",
+     "registrationDate": "2023-10-01", "disposalDate": "", "expireDate": "", "name": "有限会社カナタ（架空）"},
+    {"sequenceNumber": "2", "registratedNumber": "T1010401000002", "process": "04", "latest": "1",
+     "registrationDate": "2023-10-01", "disposalDate": "2026-04-01", "expireDate": "", "name": "有限会社カナタ（架空）"}
+  ]
+}

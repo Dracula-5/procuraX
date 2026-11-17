@@ -1,0 +1,40 @@
+{
+  "checked_at": "2026-11-13T11:43:06+00:00",
+  "submitted_status": 200,
+  "bad_login_status": 401,
+  "metrics_without_token_via_web": 401,
+  "prometheus_up": {
+    "procurax-worker": "1",
+    "procurax-api": "1"
+  },
+  "http_series": 6,
+  "policy_outcomes": {
+    "requires_approval": "1"
+  },
+  "auth_failures": {
+    "login": "1"
+  },
+  "worker_cycles_ok": {
+    "procurax-worker": "7"
+  },
+  "outbox_pending": {
+    "procurax-worker": "0",
+    "procurax-api": "0"
+  },
+  "alert_rules_loaded": 8,
+  "grafana_dashboards": [
+    "ProcuraX",
+    "ProcuraX overview"
+  ],
+  "grafana_panels": 12,
+  "grafana_query_has_data": true,
+  "jaeger_services": [
+    "jaeger",
+    "procurax-api",
+    "procurax-worker"
+  ],
+  "jaeger_api_traces": 20,
+  "jaeger_worker_traces": 5,
+  "jaeger_has_sql_spans": true,
+  "passed": true
+}

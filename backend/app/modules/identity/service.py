@@ -1,7 +1,8 @@
 import re
 import secrets
 import uuid
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
@@ -19,6 +20,7 @@ from app.core.errors import (
 from app.core.principal import Principal
 from app.core.security import (
     create_access_token,
+    create_mfa_challenge,
     hash_opaque_token,
     hash_password,
     new_opaque_token,
@@ -33,6 +35,7 @@ from app.domain.rbac import (
     permissions_for,
 )
 from app.modules.audit import service as audit
+from app.modules.identity import sessions
 from app.modules.identity.models import Invitation, Organization, User, UserRole
 from app.modules.identity.schemas import (
     AcceptInvitationRequest,
@@ -40,8 +43,10 @@ from app.modules.identity.schemas import (
     InvitationCreate,
     InvitationOut,
     MeOut,
+    MfaChallenge,
     OrgOut,
     OrgUpdate,
+    PreferencesUpdate,
     RegisterRequest,
     RoleOut,
     TokenResponse,
@@ -83,12 +88,112 @@ async def _me(session: AsyncSession, user: User) -> MeOut:
         roles=roles,
         permissions=sorted(p.value for p in perms),
         organization=OrgOut.model_validate(org),
+        locale=user.locale,
+        mfa_enabled=user.mfa_enabled_at is not None,
     )
 
 
-async def _issue_token(session: AsyncSession, user: User) -> TokenResponse:
-    token, ttl = create_access_token(user_id=user.id, org_id=user.org_id)
-    return TokenResponse(access_token=token, expires_in=ttl, user=await _me(session, user))
+@dataclass(frozen=True)
+class SignIn:
+    """What a successful sign-in hands to the router: the JSON body and the refresh cookie's value."""
+
+    response: TokenResponse
+    refresh_token: str
+    refresh_expires_at: datetime
+
+
+async def _token_response(session: AsyncSession, user: User, issued: sessions.Issued) -> SignIn:
+    token, ttl = create_access_token(user_id=user.id, org_id=user.org_id, session_id=issued.family_id)
+    body = TokenResponse(
+        access_token=token, expires_in=ttl, csrf_token=issued.csrf_token, user=await _me(session, user)
+    )
+    return SignIn(body, issued.refresh_token, issued.expires_at)
+
+
+async def _issue_token(
+    session: AsyncSession, user: User, method: str, user_agent: str | None = None
+) -> SignIn:
+    issued = await sessions.start(session, user, method, user_agent)
+    await session.commit()
+    return await _token_response(session, user, issued)
+
+
+async def refresh(refresh_token: str | None, csrf: str | None, user_agent: str | None) -> SignIn:
+    """Rotate the refresh token (cookie) and issue a new access token. No tenant is known yet."""
+    async with system_session() as s:
+        user, issued = await sessions.rotate(s, refresh_token, csrf, user_agent)
+        await s.commit()
+        return await _token_response(s, user, issued)
+
+
+async def logout(refresh_token: str | None, csrf: str | None) -> None:
+    async with system_session() as s:
+        family = await sessions.family_of(s, refresh_token)
+        if family is None:
+            return
+        if not sessions.csrf_matches(family, csrf):
+            raise AuthenticationError("Missing or invalid CSRF token", details={"reason": "csrf_invalid"})
+        await sessions.revoke_family(s, family, "signed_out")
+        await s.commit()
+
+
+async def finish_mfa_sign_in(
+    user_id: uuid.UUID, code: str | None, recovery_code: str | None, user_agent: str | None
+) -> SignIn:
+    from app.modules.identity import mfa  # noqa: PLC0415 - avoids an import cycle
+
+    async with system_session() as s:
+        try:
+            user = await mfa.verify_sign_in(s, user_id, code, recovery_code)
+        except AuthenticationError:
+            await s.commit()  # keep nothing half-done; the failure is counted by the router
+            raise
+        user.last_login_at = utcnow()
+        method = s.info.get("mfa_method", "password_mfa")
+        await audit.record(
+            s,
+            org_id=user.org_id,
+            actor=_actor(user),
+            action="user.login",
+            entity_type="user",
+            entity_id=user.id,
+            summary="Signed in (password and second factor)",
+            meta={"method": method},
+        )
+        return await _issue_token(s, user, method, user_agent)
+
+
+async def sso_sign_in(email: str, user_agent: str | None) -> SignIn:
+    """An identity provider vouched for this verified e-mail; only an existing, active user may enter."""
+    async with system_session() as s:
+        user = await s.scalar(select(User).where(User.email == email.lower(), User.deleted_at.is_(None)))
+        if user is None or not user.is_active:
+            raise AuthenticationError(
+                "No active ProcuraX account for this e-mail", details={"reason": "sso_no_account"}
+            )
+        user.last_login_at = utcnow()
+        await audit.record(
+            s,
+            org_id=user.org_id,
+            actor=_actor(user),
+            action="user.login",
+            entity_type="user",
+            entity_id=user.id,
+            summary="Signed in with single sign-on",
+            meta={"method": "oidc"},
+        )
+        return await _issue_token(s, user, "oidc", user_agent)
+
+
+def _actor(user: User) -> Principal:
+    return Principal(
+        user_id=user.id,
+        org_id=user.org_id,
+        email=user.email,
+        full_name=user.full_name,
+        roles=frozenset(),
+        permissions=frozenset(),
+    )
 
 
 async def _email_exists(email: str) -> bool:
@@ -120,7 +225,7 @@ async def _set_roles(
 # ---------------------------------------------------------------------------------------
 
 
-async def register(session: AsyncSession, data: RegisterRequest) -> TokenResponse:
+async def register(session: AsyncSession, data: RegisterRequest, user_agent: str | None = None) -> SignIn:
     email = data.email.lower()
     if await _email_exists(email):
         raise ConflictError("An account with this e-mail already exists", code="email_taken")
@@ -179,10 +284,10 @@ async def register(session: AsyncSession, data: RegisterRequest) -> TokenRespons
     except IntegrityError as exc:  # concurrent registration with the same e-mail
         await session.rollback()
         raise ConflictError("An account with this e-mail already exists", code="email_taken") from exc
-    return await _issue_token(session, user)
+    return await _issue_token(session, user, "register", user_agent)
 
 
-async def login(email: str, password: str) -> TokenResponse:
+async def login(email: str, password: str, user_agent: str | None = None) -> SignIn | MfaChallenge:
     email = email.lower()
     async with system_session() as s:
         user = await s.scalar(select(User).where(User.email == email, User.deleted_at.is_(None)))
@@ -209,6 +314,9 @@ async def login(email: str, password: str) -> TokenResponse:
             )
             await s.commit()
             raise AuthenticationError("Invalid e-mail or password")
+        if user.mfa_enabled_at is not None:
+            token, ttl = create_mfa_challenge(user_id=user.id)
+            return MfaChallenge(mfa_token=token, expires_in=ttl)
         user.last_login_at = utcnow()
         await audit.record(
             s,
@@ -218,9 +326,9 @@ async def login(email: str, password: str) -> TokenResponse:
             entity_type="user",
             entity_id=user.id,
             summary="Signed in",
+            meta={"method": "password"},
         )
-        await s.commit()
-        return await _issue_token(s, user)
+        return await _issue_token(s, user, "password", user_agent)
 
 
 async def me(session: AsyncSession, principal: Principal) -> MeOut:
@@ -229,7 +337,16 @@ async def me(session: AsyncSession, principal: Principal) -> MeOut:
     return await _me(session, user)
 
 
-async def accept_invitation(data: AcceptInvitationRequest) -> TokenResponse:
+async def update_preferences(session: AsyncSession, principal: Principal, data: PreferencesUpdate) -> MeOut:
+    # A display preference, not a business or access change, so it is not written to the audit trail.
+    user = await session.get(User, principal.user_id)
+    assert user is not None
+    user.locale = data.locale.value if data.locale else None
+    await session.commit()
+    return await _me(session, user)
+
+
+async def accept_invitation(data: AcceptInvitationRequest, user_agent: str | None = None) -> SignIn:
     token_hash = hash_opaque_token(data.token)
     async with system_session() as s:
         inv = await s.scalar(select(Invitation).where(Invitation.token_hash == token_hash).with_for_update())
@@ -271,8 +388,7 @@ async def accept_invitation(data: AcceptInvitationRequest) -> TokenResponse:
             summary=f"{user.email} accepted invitation with roles {', '.join(inv.role_keys)}",
             meta={"invitation_id": str(inv.id)},
         )
-        await s.commit()
-        return await _issue_token(s, user)
+        return await _issue_token(s, user, "invitation", user_agent)
 
 
 # ---------------------------------------------------------------------------------------
@@ -303,7 +419,7 @@ async def demo_personas() -> list[DemoPersonaOut]:
         return personas
 
 
-async def demo_login(email: str) -> TokenResponse:
+async def demo_login(email: str, user_agent: str | None = None) -> SignIn:
     if not get_settings().demo_mode:
         raise NotFoundError("Demo mode is disabled")
     async with system_session() as s:
@@ -325,8 +441,7 @@ async def demo_login(email: str) -> TokenResponse:
             entity_id=user.id,
             summary=f"Demo persona login as {user.email}",
         )
-        await s.commit()
-        return await _issue_token(s, user)
+        return await _issue_token(s, user, "demo", user_agent)
 
 
 # ---------------------------------------------------------------------------------------
@@ -409,6 +524,7 @@ async def _user_out(session: AsyncSession, user: User) -> UserOut:
         is_active=user.is_active,
         last_login_at=user.last_login_at,
         created_at=user.created_at,
+        mfa_enabled=user.mfa_enabled_at is not None,
     )
 
 
@@ -436,6 +552,7 @@ async def list_users(session: AsyncSession, principal: Principal) -> list[UserOu
             is_active=u.is_active,
             last_login_at=u.last_login_at,
             created_at=u.created_at,
+            mfa_enabled=u.mfa_enabled_at is not None,
         )
         for u in users
     ]
@@ -515,6 +632,8 @@ async def update_user(
             await _set_roles(session, principal.org_id, user.id, data.roles, granted_by=principal.user_id)
             before["roles"], after["roles"] = sorted(current), sorted(new)
 
+    if after.get("is_active") is False:
+        await sessions.revoke_user(session, user.id, "deactivated")
     if after:
         await audit.record(
             session,

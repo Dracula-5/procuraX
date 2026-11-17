@@ -1,0 +1,27 @@
+{
+  "_note": "Shape follows the NTA Web-API v1 JSON response (announcement[]). Fictional issuer; used by the local mock server.",
+  "lastUpdateDate": "2026-11-01",
+  "count": "1",
+  "divideNumber": "1",
+  "divideSize": "1",
+  "announcement": [
+    {
+      "sequenceNumber": "1",
+      "registratedNumber": "T2010401000001",
+      "process": "01",
+      "correct": "0",
+      "kind": "2",
+      "country": "1",
+      "latest": "1",
+      "registrationDate": "2023-10-01",
+      "updateDate": "2023-10-01",
+      "disposalDate": "",
+      "expireDate": "",
+      "address": "東京都港区（架空）",
+      "name": "株式会社ミナト商事（架空）",
+      "kana": "",
+      "tradeName": "",
+      "popularName_previousName": ""
+    }
+  ]
+}

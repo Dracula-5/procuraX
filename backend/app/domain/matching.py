@@ -20,10 +20,11 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import date
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 
 from app.domain.money import minor_units
-from app.domain.qualified_invoice import is_valid_registration_number
+from app.domain.qualified_invoice import RegistryRecord, is_valid_registration_number, registry_status
 
 ALLOWED_TAX_RATES = (Decimal("0"), Decimal("0.08"), Decimal("0.10"))
 VOID_INVOICE_STATES = frozenset({"exception_rejected", "duplicate"})
@@ -106,12 +107,53 @@ def evaluate_tax(lines: list[InvoiceLine], declared_tax: Decimal, currency: str)
     }
 
 
+def _registry_evidence(record: RegistryRecord, on: date | None, source: str) -> dict:
+    status = registry_status(record, on) if on is not None else ("active" if record.found else "not_found")
+    return {
+        "source": source,
+        "status": status,
+        "name": record.name,
+        "registered_on": record.registered_on.isoformat() if record.registered_on else None,
+        "revoked_on": record.revoked_on.isoformat() if record.revoked_on else None,
+        "expired_on": record.expired_on.isoformat() if record.expired_on else None,
+        "fetched_at": record.fetched_at.isoformat(),
+    }
+
+
+_REGISTRY_REASONS = {
+    "not_found": "Registration number is not in the NTA qualified-invoice issuer registry",
+    "not_yet_registered": "The issuer was not yet registered on the invoice date",
+    "revoked": "The issuer's registration was revoked before the invoice date",
+    "expired": "The issuer's registration had lapsed before the invoice date",
+}
+
+
 def evaluate_registration(
-    stated: str | None, vendor_registration: str | None, declared_tax: Decimal, currency: str
+    stated: str | None,
+    vendor_registration: str | None,
+    declared_tax: Decimal,
+    currency: str,
+    *,
+    invoice_date: date | None = None,
+    registry: RegistryRecord | None = None,
+    registry_source: str = "disabled",
 ) -> dict:
+    """Check-digit and vendor-master checks, plus the NTA registry when a record is available.
+
+    `registry_source` says where the evidence came from (nta_web_api, cache) or why there is none
+    (disabled, unavailable); without a record the result falls back to the local checks alone.
+    """
     if currency != "JPY":
         return {"status": "not_applicable", "reason": "Qualified Invoice System applies to JPY invoices"}
-    base = {"stated": stated, "vendor_master": vendor_registration, "registry_checked": False}
+    base: dict = {
+        "stated": stated,
+        "vendor_master": vendor_registration,
+        "registry_checked": registry is not None,
+    }
+    if registry is not None:
+        base["registry"] = _registry_evidence(registry, invoice_date, registry_source)
+    else:
+        base["registry"] = {"source": registry_source}
     if stated is None:
         if declared_tax > 0:
             return {**base, "status": "missing", "reason": "Tax charged without a registration number"}
@@ -122,6 +164,8 @@ def evaluate_registration(
         return {**base, "status": "mismatch", "reason": "Vendor master has no registration number"}
     if stated != vendor_registration:
         return {**base, "status": "mismatch", "reason": "Registration number differs from vendor master"}
+    if registry is not None and base["registry"]["status"] != "active":
+        return {**base, "status": "mismatch", "reason": _REGISTRY_REASONS[base["registry"]["status"]]}
     return {**base, "status": "verified"}
 
 
@@ -135,6 +179,9 @@ def match_invoice(
     currency: str,
     stated_registration: str | None,
     vendor_registration: str | None,
+    invoice_date: date | None = None,
+    registry: RegistryRecord | None = None,
+    registry_source: str = "disabled",
 ) -> MatchResult:
     by_id = {line.id: line for line in order_lines}
     seen: set[uuid.UUID] = set()
@@ -187,7 +234,15 @@ def match_invoice(
             f"Declared tax {tax['declared']} is outside the expected range "
             f"{tax['expected_range'][0]}–{tax['expected_range'][1]}"
         )
-    qualified = evaluate_registration(stated_registration, vendor_registration, declared_tax, currency)
+    qualified = evaluate_registration(
+        stated_registration,
+        vendor_registration,
+        declared_tax,
+        currency,
+        invoice_date=invoice_date,
+        registry=registry,
+        registry_source=registry_source,
+    )
     if qualified["status"] in {"mismatch", "missing"}:
         exceptions.append(f"Qualified invoice: {qualified['reason']}")
     subtotal = sum((line.quantity * line.unit_price for line in invoice_lines), Decimal(0))

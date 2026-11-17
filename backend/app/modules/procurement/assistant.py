@@ -3,11 +3,8 @@
 import asyncio
 import base64
 import binascii
-import math
 import re
-import unicodedata
 import uuid
-from collections import Counter
 from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
@@ -17,6 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
+from app.ai import gateway
+from app.ai.retrieval import hybrid_search, index_document, rrf
+from app.ai.text import Passage, bm25_rank, chunks, tokenize
 from app.api.deps import DB, requires
 from app.core.config import get_settings
 from app.core.errors import ConflictError, NotFoundError
@@ -89,55 +89,28 @@ class KnowledgeAnswer(BaseModel):
     answer: str
     strategy: str
     citations: list[KnowledgeCitation]
+    # A model-written summary of the citations (only when one passed the citation check).
+    generated: bool = False
+    model: str | None = None
+    prediction_id: uuid.UUID | None = None
 
 
-_STOPWORDS = {
-    "a",
-    "an",
-    "and",
-    "are",
-    "can",
-    "do",
-    "for",
-    "how",
-    "i",
-    "in",
-    "is",
-    "me",
-    "of",
-    "our",
-    "the",
-    "this",
-    "to",
-    "what",
-    "when",
-    "which",
-    "who",
-    "why",
-    "with",
-}
-_WORD = re.compile(r"[a-z0-9]+")
-# Hiragana, katakana (incl. prolonged sound mark), CJK unified ideographs and compatibility forms.
-_CJK_RUN = re.compile(r"[぀-ヿ㐀-䶿一-鿿豈-﫿]+")
+ANSWER_SYSTEM = (
+    "You answer questions about a company's procurement policy using only the numbered sources given. "
+    "Write two to four sentences in the language of the question. End every sentence with the number of "
+    "the source it comes from, like [1]. If the sources do not answer the question, reply exactly: "
+    "NOT IN SOURCES. You never approve, reject or decide anything; say who decides when relevant."
+)
+_CITATION = re.compile(r"\[(\d+)\]")
 
 
-def ascii_tokens(text: str) -> list[str]:
-    """Original tokenizer: lower-case ASCII words only. Japanese text yields no terms."""
-    return [term for term in _WORD.findall(text.casefold()) if term not in _STOPWORDS]
-
-
-def tokenize(text: str) -> list[str]:
-    """ASCII words plus overlapping character bigrams for Japanese/CJK runs.
-
-    Japanese is written without spaces, so word-splitting finds nothing. Character bigrams are
-    the standard dictionary-free approach for CJK retrieval. NFKC first folds full-width forms
-    (ＱＡ, １２) to their ASCII equivalents so mixed-width text matches.
-    """
-    normalized = unicodedata.normalize("NFKC", text).casefold()
-    tokens = ascii_tokens(normalized)
-    for run in _CJK_RUN.findall(normalized):
-        tokens.extend([run] if len(run) == 1 else [run[i : i + 2] for i in range(len(run) - 1)])
-    return tokens
+def _checked_answer(text: str, sources: int) -> str | None:
+    """The model's answer if every sentence-level citation points at a given source; otherwise None."""
+    answer = text.strip()
+    cited = [int(n) for n in _CITATION.findall(answer)]
+    if not answer or answer.upper().startswith("NOT IN SOURCES") or not cited:
+        return None
+    return answer if all(1 <= n <= sources for n in cited) else None
 
 
 def _rank_texts(
@@ -146,37 +119,11 @@ def _rank_texts(
     limit: int = 5,
     tokenizer: Callable[[str], list[str]] = tokenize,
 ) -> list[KnowledgeCitation]:
-    query_terms = set(tokenizer(question))
-    if not query_terms:
-        return []
-    tokenized = [tokenizer(f"{title} {description}") for _, title, description in documents]
-    document_count = len(documents)
-    average_length = sum(map(len, tokenized)) / max(document_count, 1)
-    frequencies = [Counter(tokens) for tokens in tokenized]
-    inverse_document_frequency = {
-        term: math.log(
-            1
-            + (document_count - sum(term in document for document in frequencies) + 0.5)
-            / (sum(term in document for document in frequencies) + 0.5)
-        )
-        for term in query_terms
-    }
-    hits: list[KnowledgeCitation] = []
-    for (rule_id, title, description), tokens, frequencies_for_doc in zip(
-        documents, tokenized, frequencies, strict=True
-    ):
-        score = 0.0
-        for term in query_terms:
-            frequency = frequencies_for_doc[term]
-            if not frequency:
-                continue
-            length_norm = frequency + 1.2 * (0.25 + 0.75 * len(tokens) / max(average_length, 1))
-            score += inverse_document_frequency[term] * frequency * 2.2 / length_norm
-        if score > 0:
-            hits.append(
-                KnowledgeCitation(id=rule_id, title=title, excerpt=description, score=round(score, 4))
-            )
-    return sorted(hits, key=lambda hit: (-hit.score, hit.id))[:limit]
+    passages = [Passage(id=i, title=title, text=text, score=0.0) for i, title, text in documents]
+    return [
+        KnowledgeCitation(id=p.id, title=p.title, excerpt=p.text, score=p.score)
+        for p in bm25_rank(question, passages, limit, tokenizer)
+    ]
 
 
 def _rank_policy_rules(question: str, limit: int = 5) -> list[KnowledgeCitation]:
@@ -186,20 +133,7 @@ def _rank_policy_rules(question: str, limit: int = 5) -> list[KnowledgeCitation]
 
 
 def _chunks(content: str, *, size: int = 900, overlap: int = 120) -> list[str]:
-    normalized = " ".join(content.split())
-    chunks: list[str] = []
-    start = 0
-    while start < len(normalized):
-        end = min(len(normalized), start + size)
-        if end < len(normalized):
-            boundary = normalized.rfind(" ", start + size // 2, end)
-            if boundary > start:
-                end = boundary
-        chunks.append(normalized[start:end])
-        if end == len(normalized):
-            break  # without this, the tail was re-emitted one character at a time
-        start = max(end - overlap, start + 1)
-    return chunks
+    return chunks(content, size=size, overlap=overlap)
 
 
 HELP = (
@@ -311,9 +245,9 @@ async def answer_question(
                 PurchaseRequest.org_id == principal.org_id,
                 PurchaseRequest.status == PRStatus.APPROVED.value,
                 PurchaseRequest.category == "software",
-                PurchaseRequest.estimated_total > threshold,
+                PurchaseRequest.base_amount > threshold,
             )
-            .order_by(PurchaseRequest.estimated_total.desc())
+            .order_by(PurchaseRequest.base_amount.desc())
             .limit(50)
         )
         for request_row in requests:
@@ -441,19 +375,22 @@ async def answer_policy_question(
         .order_by(ProcurementKnowledgeDocument.created_at.desc())
         .limit(100)
     )
-    document_chunks: list[tuple[str, str, str]] = []
-    for document in tenant_documents:
-        for index, excerpt in enumerate(_chunks(document.content)):
-            citation_id = f"doc:{document.id}:v{document.version}:chunk:{index + 1}"
-            title = f"{document.title} (v{document.version})"
-            if document.source_reference:
-                title = f"{title} · {document.source_reference}"
-            document_chunks.append((citation_id, title, excerpt))
-    document_citations = _rank_texts(question, document_chunks, limit=5)
-    citations = sorted(
-        [*document_citations, *_rank_policy_rules(question)],
-        key=lambda citation: (-citation.score, citation.id),
-    )[:5]
+    del tenant_documents  # documents are searched through their indexed chunks (BM25 + pgvector, RRF)
+    document_citations = [
+        KnowledgeCitation(id=p.id, title=p.title, excerpt=p.text, score=p.score)
+        for p in await hybrid_search(session, principal.org_id, question, limit=5)
+    ]
+    # Document passages (hybrid) and policy rules (BM25) have different score scales: fuse by rank.
+    rule_citations = _rank_policy_rules(question)
+    by_id = {c.id: c for c in [*document_citations, *rule_citations]}
+    fused = rrf([[c.id for c in document_citations], [c.id for c in rule_citations]])
+    citations = [
+        by_id[key].model_copy(update={"score": round(score, 5)})
+        # On equal rank the tenant's own document goes first (more specific than a generic rule).
+        for key, score in sorted(
+            fused.items(), key=lambda item: (-item[1], not item[0].startswith("doc:"), item[0])
+        )[:5]
+    ]
     if any(term in question.casefold() for term in ("threshold", "amount", "limit", "approval")):
         policy = await session.scalar(
             select(ApprovalPolicy).where(
@@ -484,13 +421,51 @@ async def answer_policy_question(
         summary = "Retrieved source text is quoted below; consult its cited policy or tenant source."
     else:
         summary = "No matching policy text was found. Rephrase the question or consult an administrator."
+    documents_by = (
+        "hybrid retrieval (BM25 + pgvector embeddings, reciprocal rank fusion)"
+        if get_settings().retrieval_mode == "hybrid"
+        else "BM25 retrieval (CJK bigrams)"
+    )
+    strategy = (
+        f"Tenant-scoped {documents_by} over document chunks, BM25 over the policy rules, and the active "
+        "policy, merged by rank; extractive citations."
+    )
+    if not citations:
+        return KnowledgeAnswer(answer=summary, strategy=strategy, citations=citations)
+    sources = "\n\n".join(f"[{i}] {c.title}\n{c.excerpt}" for i, c in enumerate(citations, start=1))
+    prompt = f"Question: {question}\n\nSources:\n{sources}"
+    llm = gateway.get_llm()
+    try:
+        result = await llm.complete(system=ANSWER_SYSTEM, prompt=prompt, max_tokens=4000)
+    except gateway.LLMUnavailable:
+        return KnowledgeAnswer(answer=summary, strategy=strategy, citations=citations)
+    checked = _checked_answer(result.text, len(citations))
+    prediction = await gateway.record(
+        session,
+        org_id=principal.org_id,
+        kind="knowledge_answer",
+        model=result.model,
+        model_version=result.model_version,
+        input_ref=f"question:{gateway.sha256_of(question)[:16]}",
+        input_data={"system": ANSWER_SYSTEM, "prompt": prompt},
+        output={"text": result.text, "accepted": checked is not None, "citations": [c.id for c in citations]},
+        latency_ms=result.latency_ms,
+        actor_user_id=principal.user_id,
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
+    )
+    await session.commit()
+    if checked is None:  # uncited or mis-cited text is never shown; the quoted sources still are
+        return KnowledgeAnswer(
+            answer=summary, strategy=strategy, citations=citations, prediction_id=prediction.id
+        )
     return KnowledgeAnswer(
-        answer=summary,
-        strategy=(
-            "Tenant-scoped BM25 lexical retrieval over versioned policy rules and administrator-ingested "
-            "document chunks, plus active policy lookup; extractive citations only, no generated answer."
-        ),
+        answer=checked,
+        strategy=f"{strategy} Summary written by {result.model} from the numbered sources only; check them.",
         citations=citations,
+        generated=True,
+        model=result.model,
+        prediction_id=prediction.id,
     )
 
 
@@ -564,6 +539,8 @@ async def add_knowledge_document(
         created_by_id=principal.user_id,
     )
     session.add(row)
+    await session.flush()
+    await index_document(session, row)  # chunks + embeddings for hybrid retrieval
     await audit.record(
         session,
         org_id=principal.org_id,

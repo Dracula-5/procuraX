@@ -4,9 +4,11 @@ pricing, the human-in-the-loop award record and the login throttle."""
 import asyncio
 from datetime import date
 
+import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
 
-from app.modules.identity.router import login_throttle
+from app.core.config import get_settings
 from tests.helpers import API, PASSWORD, Org, build_org, create_vendor, submit
 
 REGISTRATION = "T7123456789012"  # valid check digit
@@ -415,25 +417,27 @@ async def test_override_of_recommendation_needs_reason_and_is_reported(client: A
     assert outcome["outcomes"]["followed"]["awards"] == 0
 
 
-async def test_repeated_failed_logins_are_throttled(client: AsyncClient) -> None:
+async def test_repeated_failed_logins_are_throttled(
+    client: AsyncClient,
+    admin_engine,
+    monkeypatch: pytest.MonkeyPatch,  # noqa: ANN001
+) -> None:
     org = await build_org(client)
-    original = login_throttle.max_failures
-    login_throttle.max_failures = 3
-    login_throttle._failures.clear()
-    try:
-        email = org["employee"].email
-        for _ in range(3):
-            bad = await client.post(
-                f"{API}/auth/login", json={"email": email, "password": "wrong-password-1"}
-            )
-            assert bad.status_code == 401
-        blocked = await client.post(f"{API}/auth/login", json={"email": email, "password": PASSWORD})
-        assert blocked.status_code == 429
-        assert int(blocked.headers["Retry-After"]) > 0
-        other_user = await client.post(
-            f"{API}/auth/login", json={"email": org["peer"].email, "password": PASSWORD}
-        )
-        assert other_user.status_code == 200
-    finally:
-        login_throttle.max_failures = original
-        login_throttle._failures.clear()
+    monkeypatch.setattr(get_settings(), "login_max_failures", 3)
+    async with admin_engine.begin() as conn:
+        await conn.execute(text("DELETE FROM auth_throttle"))
+    email = org["employee"].email
+    for _ in range(3):
+        bad = await client.post(f"{API}/auth/login", json={"email": email, "password": "wrong-password-1"})
+        assert bad.status_code == 401
+    blocked = await client.post(f"{API}/auth/login", json={"email": email, "password": PASSWORD})
+    assert blocked.status_code == 429
+    assert int(blocked.headers["Retry-After"]) > 0
+    other_user = await client.post(
+        f"{API}/auth/login", json={"email": org["peer"].email, "password": PASSWORD}
+    )
+    assert other_user.status_code == 200
+    # The counts live in PostgreSQL (hashed keys), so every API process sees them.
+    async with admin_engine.connect() as conn:
+        stored = (await conn.execute(text("SELECT key_hash FROM auth_throttle"))).scalars().all()
+    assert stored and all(len(k) == 64 and email not in k for k in stored)

@@ -7,7 +7,7 @@ from decimal import Decimal
 import pytest
 
 from app.core.errors import RateLimitedError
-from app.core.rate_limit import FailureThrottle
+from app.core.rate_limit import MemoryThrottle
 from app.domain.matching import (
     InvalidInvoice,
     InvoiceLine,
@@ -151,14 +151,14 @@ def test_ranking_scores_only_eligible_quotes_deterministically() -> None:
     )
 
 
-def test_failure_throttle_blocks_after_limit_and_resets() -> None:
-    throttle = FailureThrottle(max_failures=2, window_seconds=60)
-    throttle.record_failure("a")
-    throttle.check(("a", 2))
-    throttle.record_failure("a")
+async def test_failure_throttle_blocks_after_limit_and_resets() -> None:
+    throttle = MemoryThrottle(window_seconds=60)
+    await throttle.record_failure("a")
+    await throttle.check(("a", 2))
+    await throttle.record_failure("a")
     with pytest.raises(RateLimitedError) as error:
-        throttle.check(("a", 2))
+        await throttle.check(("a", 2))
     assert error.value.details["retry_after_seconds"] > 0
-    throttle.check(("b", 2))
-    throttle.reset("a")
-    throttle.check(("a", 2))
+    await throttle.check(("b", 2))
+    await throttle.reset("a")
+    await throttle.check(("a", 2))

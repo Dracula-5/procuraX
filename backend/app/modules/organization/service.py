@@ -184,7 +184,7 @@ async def committed_amount(
     *,
     exclude_request_id: uuid.UUID | None = None,
 ) -> Decimal:
-    query = select(func.coalesce(func.sum(PurchaseRequest.estimated_total), 0)).where(
+    query = select(func.coalesce(func.sum(PurchaseRequest.base_amount), 0)).where(
         PurchaseRequest.org_id == org_id,
         PurchaseRequest.cost_center_id == cost_center_id,
         PurchaseRequest.fiscal_year == fiscal_year,
@@ -219,15 +219,11 @@ async def list_budgets(
             PurchaseRequest.cost_center_id,
             PurchaseRequest.fiscal_year,
             func.coalesce(
-                func.sum(PurchaseRequest.estimated_total).filter(
-                    PurchaseRequest.status.in_(COMMITTED_STATUSES)
-                ),
+                func.sum(PurchaseRequest.base_amount).filter(PurchaseRequest.status.in_(COMMITTED_STATUSES)),
                 0,
             ).label("committed"),
             func.coalesce(
-                func.sum(PurchaseRequest.estimated_total).filter(
-                    PurchaseRequest.status.in_(PENDING_STATUSES)
-                ),
+                func.sum(PurchaseRequest.base_amount).filter(PurchaseRequest.status.in_(PENDING_STATUSES)),
                 0,
             ).label("pending"),
         )

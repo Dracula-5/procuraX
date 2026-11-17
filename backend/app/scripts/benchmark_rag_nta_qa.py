@@ -9,7 +9,9 @@ Task: each official question is a query; the corpus is every official answer, ch
 as tenant documents are chunked in production. A query succeeds when a chunk of its own answer
 is retrieved. Questions and relevance labels are the NTA's, not ours, so the test is not
 written to suit the retriever. Compared: the original ASCII-word tokenizer vs the CJK
-character-bigram tokenizer, both through the production BM25 ranker.
+character-bigram tokenizer, both through the production BM25 ranker; then the production local embedding
+(hashing-ngram-256, cosine) alone and fused with BM25 by reciprocal rank fusion, as the hybrid retriever does
+(pgvector computes the same cosine distance in the database).
 
     uv run python -m app.scripts.benchmark_rag_nta_qa --output ../reports/rag_nta_invoice_qa.json
 """
@@ -29,7 +31,10 @@ import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app.modules.procurement.assistant import _chunks, _rank_texts, ascii_tokens, tokenize
+from app.ai.embeddings import EMBEDDING_MODEL, embed
+from app.ai.retrieval import CANDIDATES, rrf
+from app.ai.text import ascii_tokens, tokenize
+from app.modules.procurement.assistant import _chunks, _rank_texts
 
 SOURCE_URL = "https://www.nta.go.jp/taxes/shiraberu/zeimokubetsu/shohi/keigenzeiritsu/pdf/qa/01-01.pdf"
 SOURCE_TITLE = "消費税の仕入税額控除制度における適格請求書等保存方式に関するＱ＆Ａ"
@@ -99,17 +104,53 @@ def main() -> None:
         for index, chunk in enumerate(_chunks(pair["answer"])):
             corpus.append((f"{pair['id']}#{index + 1}", pair["id"], chunk))
 
+    vectors = {cid: embed(text) for cid, _, text in corpus}
+
+    def vector_rank(question: str, limit: int) -> list[str]:
+        query = embed(question)
+        scored = sorted(
+            (
+                (sum(a * b for a, b in zip(query, vector, strict=True)), cid)
+                for cid, vector in vectors.items()
+            ),
+            key=lambda item: (-item[0], item[1]),
+        )
+        return [cid for _, cid in scored[:limit]]
+
+    def ranked_ids(name: str, question: str, tokenizer) -> list[str]:  # noqa: ANN001
+        if name == "hashing_vector":
+            return vector_rank(question, 10)
+        bm25 = [
+            h.id
+            for h in _rank_texts(
+                question,
+                [(cid, "", text) for cid, _, text in corpus],
+                CANDIDATES if name == "hybrid_rrf" else 10,
+                tokenizer,
+            )
+        ]
+        if name != "hybrid_rrf":
+            return bm25
+        fused = rrf([bm25, vector_rank(question, CANDIDATES)])
+        return [cid for cid, _ in sorted(fused.items(), key=lambda item: (-item[1], item[0]))[:10]]
+
     results = {}
-    for name, tokenizer in (("ascii_words_baseline", ascii_tokens), ("cjk_bigram", tokenize)):
+    variants = (
+        ("ascii_words_baseline", ascii_tokens),
+        ("cjk_bigram", tokenize),
+        ("hashing_vector", tokenize),
+        ("hybrid_rrf", tokenize),
+    )
+    for name, tokenizer in variants:
         reciprocal, hit1, hit5, latencies, no_terms = [], 0, 0, [], 0
         for pair in pairs:
             if not tokenizer(pair["question"]):
                 no_terms += 1
             began = time.perf_counter()
             # The title slot is empty so a chunk is matched on answer text only.
-            hits = _rank_texts(pair["question"], [(cid, "", text) for cid, _, text in corpus], 10, tokenizer)
+            hits = ranked_ids(name, pair["question"], tokenizer)
             latencies.append((time.perf_counter() - began) * 1000)
-            answers = [hit.id.split("#", 1)[0] for hit in hits]
+            answers = [hit.split("#", 1)[0] for hit in hits]
             ranked = list(dict.fromkeys(answers))  # answer-level ranking, first chunk wins
             rank = ranked.index(pair["id"]) + 1 if pair["id"] in ranked else None
             hit1 += rank == 1
@@ -145,7 +186,8 @@ def main() -> None:
         "queries": len(pairs),
         "answer_chunks": len(corpus),
         "task": "Official question → retrieve a chunk of its official answer among all answers (answer-level ranks)",
-        "ranker": "production BM25 (_rank_texts, k1=1.2, b=0.75) over production 900-character chunks",
+        "ranker": "production BM25 (_rank_texts, k1=1.2, b=0.75) over production 900-character chunks; "
+        f"embedding {EMBEDDING_MODEL} (cosine); hybrid = reciprocal rank fusion (k=60) of the top {CANDIDATES} of each",
         "results": results,
         "limitations": [
             "Questions come from the same document as the answers and often share its vocabulary, so this "

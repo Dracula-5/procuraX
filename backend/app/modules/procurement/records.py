@@ -164,6 +164,8 @@ class Invoice(UUIDPkMixin, TimestampMixin, TenantMixin, Base):
     reviewed_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     review_comment: Mapped[str | None] = mapped_column(Text)
+    # Set once the invoice's ledger entry has been exported (never exported twice).
+    journal_export_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("journal_exports.id"), index=True)
 
 
 class Payment(UUIDPkMixin, TimestampMixin, TenantMixin, Base):
@@ -190,3 +192,4 @@ class Payment(UUIDPkMixin, TimestampMixin, TenantMixin, Base):
     exported_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     export_reference: Mapped[str | None] = mapped_column(String(40), index=True)
     transfer_record: Mapped[str | None] = mapped_column(String(120))
+    journal_export_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("journal_exports.id"), index=True)

@@ -184,7 +184,8 @@ Principles:
    but configurable).
 3. One requester's line manager and one department head are known for each request. Pools
    (procurement, finance) handle the rest.
-4. Single currency per tenant at this stage. Multi-currency is roadmap.
+4. One base currency per tenant. Requests in other currencies are converted at submission with a
+   recorded rate; budgets and thresholds stay in the base currency.
 5. The ERP remains the system of record for payments. ProcuraX integrates rather than replaces.
 6. Any before/after comparison will be labelled as a **pilot measurement** or a **controlled
    simulation**, never presented as client results.

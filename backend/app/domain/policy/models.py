@@ -46,6 +46,8 @@ class PolicyConfig(BaseModel):
     split_purchase_window_days: int = Field(default=14, ge=0, le=90)
     emergency_min_justification_chars: int = Field(default=40, ge=0, le=2000)
     approval_sla_hours: int = Field(default=48, ge=1, le=720)
+    # CON-001: route to procurement when a purchase would take spend under its contract past the cap.
+    route_contract_cap_overrun: bool = True
 
     @model_validator(mode="after")
     def _thresholds_are_monotonic(self) -> "PolicyConfig":
@@ -82,6 +84,19 @@ STEP_ORDER = {
 
 
 @dataclass(frozen=True)
+class ContractFacts:
+    """The in-force contract covering this vendor and category, with its cap in base currency."""
+
+    number: str
+    value_cap: (
+        Decimal | None
+    )  # None: no cap, or the cap's currency has no exchange rate (see cap_convertible)
+    committed: Decimal  # base-currency value of other approved/pending requests under the contract
+    cap_currency: str
+    cap_convertible: bool = True
+
+
+@dataclass(frozen=True)
 class VendorFacts:
     id: str
     name: str
@@ -89,6 +104,7 @@ class VendorFacts:
     risk_level: VendorRiskLevel
     contract_status: ContractStatus
     categories: tuple[SpendCategory, ...] = ()
+    contract: ContractFacts | None = None
 
 
 @dataclass(frozen=True)
@@ -100,11 +116,13 @@ class BudgetFacts:
 
 @dataclass(frozen=True)
 class RequestFacts:
-    amount: Decimal
-    currency: str
+    amount: Decimal  # in the policy (base) currency; converted at the snapshotted rate when needed
+    currency: str  # the request's own currency
     category: SpendCategory
     line_count: int
     has_cost_center: bool
+    # False when the request is in another currency and no exchange rate is recorded (VAL-004).
+    has_exchange_rate: bool = True
     is_emergency: bool = False
     justification: str = ""
     vendor: VendorFacts | None = None

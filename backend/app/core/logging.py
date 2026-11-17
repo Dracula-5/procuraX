@@ -7,6 +7,16 @@ from datetime import UTC, datetime
 
 from app.core.request_context import get_request_id
 
+
+def _trace_id() -> str | None:
+    try:
+        from opentelemetry import trace  # noqa: PLC0415
+    except ImportError:  # pragma: no cover
+        return None
+    context = trace.get_current_span().get_span_context()
+    return format(context.trace_id, "032x") if context.is_valid else None
+
+
 _RESERVED = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__) | {"message", "asctime"}
 _SENSITIVE_MARKERS = ("password", "secret", "token", "authorization", "cookie", "apikey", "credential")
 
@@ -38,6 +48,9 @@ class JsonFormatter(logging.Formatter):
         request_id = getattr(record, "request_id", None) or get_request_id()
         if request_id:
             payload["request_id"] = request_id
+        trace_id = _trace_id()
+        if trace_id:
+            payload["trace_id"] = trace_id
         for key, value in record.__dict__.items():
             if key not in _RESERVED and key not in payload:
                 payload[key] = _safe_extra(value)

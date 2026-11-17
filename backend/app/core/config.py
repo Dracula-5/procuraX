@@ -7,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Rejected at startup when PROCURAX_ENV=prod (see _prod_guards).
 _DEV_JWT_SECRET = "dev-only-insecure-secret-change-me-0123456789"  # noqa: S105
+# Secret for encrypting values stored in the database; rejected in prod when webhooks are on.
+_DEV_DATA_KEY = "dev-only-data-encryption-secret-change-me-0123"  # noqa: S105
 
 
 def normalize_database_url(url: str) -> str:
@@ -45,7 +47,16 @@ class Settings(BaseSettings):
 
     jwt_secret: str = _DEV_JWT_SECRET
     jwt_algorithm: str = "HS256"
-    access_token_ttl_minutes: int = 60
+    # Short-lived access token, held in the SPA's memory; a rotating refresh token in an HttpOnly cookie
+    # renews it (ADR-019).
+    access_token_ttl_minutes: int = Field(default=15, ge=1, le=120)
+    refresh_token_ttl_days: int = Field(default=14, ge=1, le=90)  # absolute: sign in again after this
+    refresh_idle_hours: int = Field(default=72, ge=1, le=2160)  # unused this long → signed out
+    refresh_cookie_name: str = "procurax_refresh"
+    # "strict" when the SPA and API share a site (same origin, or the SPA host proxies /api); "none" only
+    # for a cross-site API, where browsers that block third-party cookies will not keep the session.
+    refresh_cookie_samesite: Literal["strict", "lax", "none"] = "strict"
+    mfa_issuer: str = "ProcuraX"
     invitation_ttl_hours: int = 72
 
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
@@ -59,6 +70,16 @@ class Settings(BaseSettings):
     registration_enabled: bool | None = None  # None = enabled unless public_demo
 
     @property
+    def refresh_cookie_secure(self) -> bool:
+        # Browsers drop Secure cookies on plain-http localhost only in some cases; https anywhere else.
+        return self.env == "prod" or self.public_app_url.startswith("https://")
+
+    @property
+    def mfa_available(self) -> bool:
+        """MFA secrets are encrypted with the data key; production refuses enrolment under the dev key."""
+        return not (self.env == "prod" and _DEV_DATA_KEY in self.data_encryption_key.split(","))
+
+    @property
     def allows_registration(self) -> bool:
         return self.registration_enabled if self.registration_enabled is not None else not self.public_demo
 
@@ -68,9 +89,124 @@ class Settings(BaseSettings):
     # from an external scheduler instead). Replicas coordinate through a PostgreSQL advisory lock.
     sla_escalation_interval_seconds: int = Field(default=0, ge=0)
 
-    # Failed-login throttle per client address + e-mail (in-process; one API instance).
+    # Failed sign-in / MFA / invitation throttle, shared by all API processes through PostgreSQL:
+    # limit per address + account, 4x per address, 4x per account (distributed guessing).
     login_max_failures: int = Field(default=5, ge=1)
     login_lockout_seconds: int = Field(default=900, ge=1)
+
+    # --- Single sign-on (OpenID Connect, authorization code + PKCE). Off by default. ---------------
+    # Only existing, active users whose verified e-mail matches can sign in; nobody is created by SSO.
+    oidc_enabled: bool = False
+    oidc_issuer: str | None = None  # e.g. https://login.microsoftonline.com/<tenant>/v2.0
+    oidc_client_id: str | None = None
+    oidc_client_secret: str | None = None
+    # The API's callback as registered with the provider: <public API URL>/api/v1/auth/oidc/callback
+    oidc_redirect_uri: str | None = None
+    oidc_scopes: str = "openid email profile"
+    oidc_display_name: str = "Single sign-on"
+    oidc_allowed_domains: list[str] = Field(default_factory=list)
+    oidc_timeout_seconds: float = Field(default=10, gt=0, le=60)
+
+    # --- Notifications (transactional outbox + worker). External channels are off by default. ---
+    # Outbox worker inside the API process (seconds; 0 = off, run `python -m app.worker` instead).
+    # Several API replicas and workers may run at once: rows are claimed with FOR UPDATE SKIP LOCKED.
+    notification_worker_interval_seconds: int = Field(default=0, ge=0)
+    notification_batch_size: int = Field(default=50, ge=1, le=1000)
+    # Failed deliveries are retried with exponential backoff, then dead-lettered for review.
+    notification_max_attempts: int = Field(default=6, ge=1, le=50)
+    email_enabled: bool = False
+    smtp_host: str = "127.0.0.1"
+    smtp_port: int = 1025  # Mailpit (docker-compose) in development
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_starttls: bool = False
+    smtp_timeout_seconds: float = Field(default=10, gt=0)
+    email_from: str = "ProcuraX <no-reply@procurax.local>"
+    # Slack / Microsoft Teams incoming webhooks configured per tenant.
+    webhooks_enabled: bool = False
+    # Hosts a tenant may point a webhook at: exact host, or ".suffix" for subdomains (blocks SSRF).
+    webhook_allowed_hosts: list[str] = Field(
+        default_factory=lambda: [
+            "hooks.slack.com",
+            ".webhook.office.com",
+            ".logic.azure.com",
+            ".environment.api.powerplatform.com",
+        ]
+    )
+    webhook_timeout_seconds: float = Field(default=10, gt=0)
+    # Encrypts secrets kept in the database (tenant webhook URLs): any random string of 32+
+    # characters (a Fernet key is derived from it). Comma-separated secrets rotate: the first
+    # encrypts, all decrypt. Generate with: python -c "import secrets;print(secrets.token_urlsafe(48))"
+    data_encryption_key: str = _DEV_DATA_KEY
+
+    # --- Invoice files ----------------------------------------------------------------------------
+    # "local" keeps files on disk (development; a container's disk is not durable), "s3" uses any
+    # S3-compatible store: MinIO locally and in CI, AWS S3 or Cloudflare R2 in production.
+    storage_backend: Literal["local", "s3"] = "local"
+    storage_local_dir: str = "var/documents"
+    s3_endpoint_url: str | None = None  # e.g. http://127.0.0.1:9000 for MinIO; None = AWS
+    s3_bucket: str = "procurax-documents"
+    s3_region: str = "us-east-1"
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
+    # Downloads redirect to a short-lived presigned URL (after the API's permission check).
+    s3_presign_downloads: bool = True
+    s3_presign_seconds: int = Field(default=60, ge=10, le=3600)
+    # Invoices must be kept 7 years under Japanese corporate tax law (longer with loss carry-forward);
+    # every stored file records its retain-until date. Nothing deletes files automatically.
+    document_retention_years: int = Field(default=7, ge=1, le=30)
+    # Optional ClamAV (clamd) scan run by the worker. Off: files are marked not_scanned.
+    clamav_enabled: bool = False
+    clamav_host: str = "127.0.0.1"
+    clamav_port: int = 3310
+    clamav_timeout_seconds: float = Field(default=30, gt=0)
+    # When scanning is off, may invoices with not_scanned files be paid? (Infected/pending never.)
+    allow_unscanned_documents: bool = False
+
+    # --- NTA qualified-invoice issuer registry (適格請求書発行事業者公表システム Web-API) ---------
+    # Needs an application ID issued by the National Tax Agency. Off: invoices are checked with the
+    # registration number's check digit and the vendor master only (the previous behaviour).
+    nta_registry_enabled: bool = False
+    nta_application_id: str | None = None
+    nta_api_base_url: str = "https://web-api.invoice-kohyo.nta.go.jp/1"
+    nta_cache_hours: int = Field(default=24, ge=1, le=720)
+    nta_timeout_seconds: float = Field(default=5, gt=0, le=30)
+
+    # --- Exchange rates -----------------------------------------------------------------------
+    # Optional ECB euro reference rates (free, no key; published once per working day around 16:00
+    # CET). Off: rates are entered manually. Requests in another currency without a rate are blocked
+    # by VAL-004 either way.
+    fx_ecb_enabled: bool = False
+    fx_ecb_url: str = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+    fx_timeout_seconds: float = Field(default=10, gt=0, le=60)
+
+    # --- Observability (docs/runbook.md) ----------------------------------------------------------
+    # GET /api/v1/metrics (Prometheus). In production it answers only with this bearer token, and is
+    # off when no token is set.
+    metrics_enabled: bool = True
+    metrics_token: str | None = None
+    worker_metrics_port: int = Field(default=0, ge=0, le=65535)  # 0 = the worker exposes no metrics
+    # OpenTelemetry traces over OTLP/HTTP to a collector. Off by default.
+    otel_enabled: bool = False
+    otel_exporter_otlp_endpoint: str = "http://127.0.0.1:4318"
+    otel_service_name: str = "procurax-api"
+    otel_sample_ratio: float = Field(default=1.0, ge=0, le=1)
+
+    # --- AI (advisory only; docs/system_design.md ADR-024) -------------------------------------------
+    # replay: recorded answers only, no network (default). anthropic: Claude via the official SDK; costs
+    # money and needs ANTHROPIC_API_KEY (or an `ant` profile).
+    llm_provider: Literal["replay", "anthropic"] = "replay"
+    llm_model: str = "claude-opus-5-5"
+    llm_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
+    llm_max_tokens: int = Field(default=16000, ge=256, le=64000)
+    llm_timeout_seconds: float = Field(default=60, gt=0, le=600)
+    llm_replay_dir: str | None = None
+    llm_record: bool = False  # with the anthropic provider: also write answers to llm_replay_dir
+    # Knowledge retrieval. "bm25" is the default because it measured best on the NTA Q&A benchmark with the
+    # local hashing embedding (reports/rag_nta_invoice_qa.json); "hybrid" adds pgvector cosine by RRF and is
+    # meant for a semantic embedding model. Chunks and vectors are indexed either way.
+    retrieval_mode: Literal["bm25", "hybrid"] = "bm25"
+    ai_advisories_enabled: bool = True  # ML advisory flags on submitted requests (local, no network)
 
     tesseract_path: str | None = None
     pdftoppm_path: str | None = None
@@ -96,6 +232,8 @@ class Settings(BaseSettings):
             self.cors_origins = [self.public_app_url.rstrip("/")]
         if len(self.jwt_secret) < 32:
             raise ValueError("PROCURAX_JWT_SECRET must be at least 32 characters")
+        if any(len(k.strip()) < 32 for k in self.data_encryption_key.split(",")):
+            raise ValueError("PROCURAX_DATA_ENCRYPTION_KEY must be 32+ characters (each, if several)")
         if self.env != "prod":
             return self
         # Report every missing or unsafe production setting at once, so a deployment is fixed in
@@ -103,6 +241,11 @@ class Settings(BaseSettings):
         problems = []
         if self.jwt_secret == _DEV_JWT_SECRET:
             problems.append("PROCURAX_JWT_SECRET must be set in production (32+ random characters)")
+        if self.webhooks_enabled and _DEV_DATA_KEY in self.data_encryption_key.split(","):
+            problems.append(
+                "PROCURAX_DATA_ENCRYPTION_KEY must be set in production when webhooks are enabled "
+                "(32+ random characters)"
+            )
         if "database_url" not in self.model_fields_set:
             problems.append(
                 "PROCURAX_DATABASE_URL must be set in production (runtime role connection string)"
@@ -111,6 +254,17 @@ class Settings(BaseSettings):
             problems.append("PROCURAX_DEMO_MODE must be false in production unless PROCURAX_PUBLIC_DEMO=true")
         if self.db_echo:
             problems.append("PROCURAX_DB_ECHO must be false in production")
+        if self.oidc_enabled and not all(
+            (self.oidc_issuer, self.oidc_client_id, self.oidc_client_secret, self.oidc_redirect_uri)
+        ):
+            problems.append(
+                "PROCURAX_OIDC_ISSUER, _CLIENT_ID, _CLIENT_SECRET and _REDIRECT_URI are required when "
+                "PROCURAX_OIDC_ENABLED=true"
+            )
+        if self.oidc_enabled and not (self.oidc_issuer or "").startswith("https://"):
+            problems.append("PROCURAX_OIDC_ISSUER must be an https:// URL in production")
+        if self.nta_registry_enabled and not self.nta_application_id:
+            problems.append("PROCURAX_NTA_APPLICATION_ID is required when PROCURAX_NTA_REGISTRY_ENABLED=true")
         if not self.public_app_url.startswith("https://"):
             source = (
                 "not set" if "public_app_url" not in self.model_fields_set else f"got {self.public_app_url!r}"

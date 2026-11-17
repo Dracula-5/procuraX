@@ -1,20 +1,44 @@
-"""In-process failed-attempt throttle (sliding window).
+"""Failed-attempt throttling: the interface and an in-process implementation.
 
-Scope: a single API process. Behind several replicas or a proxy, enforce the same policy at the
-gateway or with a shared store; client addresses here are the direct peer address.
+The API uses `app.modules.identity.throttle.PostgresThrottle`, which every replica shares. The in-process
+`MemoryThrottle` is for single-process tools and tests. Each key has its own limit inside one window.
 """
 
+import hashlib
 import time
 from collections import deque
+from typing import Protocol
 
 from app.core.errors import RateLimitedError
 
 _MAX_KEYS = 50_000
 
 
-class FailureThrottle:
-    def __init__(self, max_failures: int, window_seconds: int) -> None:
-        self.max_failures = max_failures
+def refuse(retry_after_seconds: int) -> RateLimitedError:
+    return RateLimitedError(
+        "Too many failed attempts; try again later",
+        details={"retry_after_seconds": max(1, retry_after_seconds)},
+    )
+
+
+def key_hash(key: str) -> str:
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+class Throttle(Protocol):
+    window_seconds: int
+
+    async def check(self, *keys_and_limits: tuple[str, int]) -> None: ...
+
+    async def record_failure(self, *keys: str) -> None: ...
+
+    async def reset(self, *keys: str) -> None: ...
+
+
+class MemoryThrottle:
+    """Sliding window per key, in this process only."""
+
+    def __init__(self, window_seconds: int) -> None:
         self.window_seconds = window_seconds
         self._failures: dict[str, deque[float]] = {}
 
@@ -28,18 +52,14 @@ class FailureThrottle:
             del self._failures[key]
         return entries
 
-    def check(self, *keys_and_limits: tuple[str, int]) -> None:
+    async def check(self, *keys_and_limits: tuple[str, int]) -> None:
         now = time.monotonic()
         for key, limit in keys_and_limits:
             entries = self._recent(key, now)
             if len(entries) >= limit:
-                retry_after = max(1, int(self.window_seconds - (now - entries[0])) + 1)
-                raise RateLimitedError(
-                    "Too many failed sign-in attempts; try again later",
-                    details={"retry_after_seconds": retry_after},
-                )
+                raise refuse(int(self.window_seconds - (now - entries[0])) + 1)
 
-    def record_failure(self, *keys: str) -> None:
+    async def record_failure(self, *keys: str) -> None:
         now = time.monotonic()
         if len(self._failures) >= _MAX_KEYS:
             # Bound memory: drop the key whose newest failure is oldest.
@@ -48,5 +68,6 @@ class FailureThrottle:
         for key in keys:
             self._failures.setdefault(key, deque()).append(now)
 
-    def reset(self, key: str) -> None:
-        self._failures.pop(key, None)
+    async def reset(self, *keys: str) -> None:
+        for key in keys:
+            self._failures.pop(key, None)

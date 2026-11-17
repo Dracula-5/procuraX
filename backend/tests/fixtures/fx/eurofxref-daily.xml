@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01" xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
+	<gesmes:subject>Reference rates</gesmes:subject>
+	<gesmes:Sender>
+		<gesmes:name>European Central Bank</gesmes:name>
+	</gesmes:Sender>
+	<!-- Test fixture in the ECB daily file's format. The numbers are made up for tests, not real rates. -->
+	<Cube>
+		<Cube time='2026-11-12'>
+			<Cube currency='USD' rate='1.1000'/>
+			<Cube currency='JPY' rate='165.00'/>
+			<Cube currency='GBP' rate='0.85000'/>
+			<Cube currency='CHF' rate='0.9500'/>
+			<Cube currency='SEK' rate='11.500'/>
+			<Cube currency='XXX' rate='not-a-number'/>
+		</Cube>
+	</Cube>
+</gesmes:Envelope>

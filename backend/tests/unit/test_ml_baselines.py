@@ -106,7 +106,7 @@ def test_chunker_stops_at_end_and_overlaps() -> None:
 
 
 def test_japanese_text_is_tokenized_into_bigrams() -> None:
-    from app.modules.procurement.assistant import ascii_tokens, tokenize
+    from app.ai.text import ascii_tokens, tokenize
 
     assert ascii_tokens("登録番号") == []
     assert tokenize("登録番号 ＱＡ") == ["qa", "登録", "録番", "番号"]

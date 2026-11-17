@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Button, Card, ErrorNotice, Field, Input, PageHeader, Select, Spinner } from "../../components/ui";
 import { api } from "../../lib/api";
 import type { CostCenter, Department, User } from "../../lib/types";
 
 export function Structure() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const departments = useQuery({ queryKey: ["departments"], queryFn: () => api.get<Department[]>("/departments") });
   const costCenters = useQuery({ queryKey: ["cost-centers"], queryFn: () => api.get<CostCenter[]>("/cost-centers") });
@@ -43,12 +45,9 @@ export function Structure() {
 
   return (
     <>
-      <PageHeader
-        title="Organisation structure"
-        subtitle="Departments own cost centres and budgets. The department head approves high-value and emergency requests charged to the department."
-      />
+      <PageHeader title={t("structure.title")} subtitle={t("structure.subtitle")} />
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Departments">
+        <Card title={t("structure.departments")}>
           <ErrorNotice error={setHead.error} />
           <ul className="divide-y divide-border">
             {departments.data?.map((d) => (
@@ -57,8 +56,8 @@ export function Structure() {
                   <p className="text-sm font-medium">
                     <span className="font-mono text-xs text-muted">{d.code}</span> {d.name}
                   </p>
-                  <Select className="h-8 max-w-52" value={d.head_user_id ?? ""} onChange={(e) => setHead.mutate({ id: d.id, head: e.target.value })} aria-label={`Head of ${d.name}`}>
-                    <option value="">No head assigned</option>
+                  <Select className="h-8 max-w-52" value={d.head_user_id ?? ""} onChange={(e) => setHead.mutate({ id: d.id, head: e.target.value })} aria-label={t("structure.headOf", { name: d.name })}>
+                    <option value="">{t("structure.noHead")}</option>
                     {users.data?.filter((u) => u.is_active).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.full_name}
@@ -67,24 +66,26 @@ export function Structure() {
                   </Select>
                 </div>
                 <p className="mt-1 text-xs text-muted">
-                  Cost centres:{" "}
-                  {costCenters.data
-                    ?.filter((c) => c.department_id === d.id)
-                    .map((c) => c.code)
-                    .join(", ") || "none"}
+                  {t("structure.costCentres", {
+                    list:
+                      costCenters.data
+                        ?.filter((c) => c.department_id === d.id)
+                        .map((c) => c.code)
+                        .join(", ") || t("structure.none"),
+                  })}
                 </p>
               </li>
             ))}
           </ul>
           <form onSubmit={submitDept} className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-[1fr_120px_auto] sm:items-end">
-            <Field label="New department">
+            <Field label={t("structure.newDepartment")}>
               <Input required value={dept.name} onChange={(e) => setDept((d) => ({ ...d, name: e.target.value }))} />
             </Field>
-            <Field label="Code">
+            <Field label={t("structure.code")}>
               <Input required pattern="[A-Za-z0-9_-]+" value={dept.code} onChange={(e) => setDept((d) => ({ ...d, code: e.target.value.toUpperCase() }))} />
             </Field>
             <Button type="submit" loading={createDept.isPending}>
-              Add
+              {t("structure.add")}
             </Button>
           </form>
           <div className="mt-2">
@@ -92,11 +93,11 @@ export function Structure() {
           </div>
         </Card>
 
-        <Card title="Add a cost centre">
+        <Card title={t("structure.addCostCentre")}>
           <form onSubmit={submitCc} className="space-y-3">
-            <Field label="Department">
+            <Field label={t("users.department")}>
               <Select required value={cc.department_id} onChange={(e) => setCc((c) => ({ ...c, department_id: e.target.value }))}>
-                <option value="">— Select —</option>
+                <option value="">{t("common.selectPlaceholder")}</option>
                 {departments.data?.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.code} · {d.name}
@@ -105,16 +106,16 @@ export function Structure() {
               </Select>
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Code">
+              <Field label={t("structure.code")}>
                 <Input required pattern="[A-Za-z0-9_-]+" value={cc.code} onChange={(e) => setCc((c) => ({ ...c, code: e.target.value.toUpperCase() }))} />
               </Field>
-              <Field label="Name">
+              <Field label={t("structure.name")}>
                 <Input required value={cc.name} onChange={(e) => setCc((c) => ({ ...c, name: e.target.value }))} />
               </Field>
             </div>
             <ErrorNotice error={createCc.error} />
             <Button type="submit" loading={createCc.isPending}>
-              Add cost centre
+              {t("structure.addCostCentreButton")}
             </Button>
           </form>
         </Card>
@@ -122,4 +123,3 @@ export function Structure() {
     </>
   );
 }
-

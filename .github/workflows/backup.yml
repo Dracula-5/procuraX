@@ -1,0 +1,70 @@
+name: Database backup
+
+# Nightly logical backup of the production database, encrypted, kept as a 7-day workflow artifact, and
+# restored into a throw-away PostgreSQL to prove it is usable. Off until the repository variable
+# PROCURAX_BACKUPS_ENABLED is "true" and these secrets exist (docs/runbook.md#backups):
+#   PROCURAX_BACKUP_DATABASE_URL  owner connection string, e.g. Neon's (postgresql://…?sslmode=require)
+#   PROCURAX_BACKUP_PASSPHRASE    long random passphrase; without it the artifact cannot be read
+# Artifacts of a public repository are readable by others, hence the encryption. Keep the passphrase
+# outside GitHub as well, or the backups are useless when GitHub is the thing you lost.
+
+on:
+  schedule:
+    - cron: "17 18 * * *"  # 03:17 Japan time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    if: ${{ vars.PROCURAX_BACKUPS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      PG_IMAGE: ${{ vars.PROCURAX_BACKUP_PG_IMAGE || 'postgres:17' }}  # client >= the server's major version
+    services:
+      restore:
+        image: postgres:17
+        env:
+          POSTGRES_USER: restore
+          POSTGRES_PASSWORD: restore
+          POSTGRES_DB: restore
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U restore" --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - name: Dump
+        env:
+          DATABASE_URL: ${{ secrets.PROCURAX_BACKUP_DATABASE_URL }}
+        run: |
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          docker run --rm --network host "$PG_IMAGE" pg_dump --format=custom --no-owner --dbname="$DATABASE_URL" > "procurax-$stamp.dump"
+          sha256sum "procurax-$stamp.dump" | tee "procurax-$stamp.dump.sha256"
+          test -s "procurax-$stamp.dump"
+      - name: Restore into a throw-away database and check it
+        run: |
+          docker run --rm -i --network host -e PGPASSWORD=restore "$PG_IMAGE" sh -c \
+            'psql -h 127.0.0.1 -U restore -d restore -c "CREATE ROLE procurax_app NOLOGIN" &&
+             pg_restore -h 127.0.0.1 -U restore -d restore --no-owner --exit-on-error --single-transaction' \
+            < "procurax-$STAMP.dump"
+          docker run --rm --network host -e PGPASSWORD=restore "$PG_IMAGE" psql -h 127.0.0.1 -U restore -d restore -At \
+            -c "SELECT 'alembic ' || version_num FROM alembic_version" \
+            -c "SELECT 'tables ' || count(*) FROM pg_tables WHERE schemaname = 'public'" \
+            -c "SELECT 'forced_rls ' || count(*) FROM pg_class WHERE relforcerowsecurity"
+      - name: Encrypt
+        env:
+          PASSPHRASE: ${{ secrets.PROCURAX_BACKUP_PASSPHRASE }}
+        run: |
+          test -n "$PASSPHRASE"
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$PASSPHRASE" --symmetric --cipher-algo AES256 \
+            --output "procurax-$STAMP.dump.gpg" "procurax-$STAMP.dump"
+          shred -u "procurax-$STAMP.dump"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: procurax-backup-${{ env.STAMP }}
+          path: |
+            procurax-${{ env.STAMP }}.dump.gpg
+            procurax-${{ env.STAMP }}.dump.sha256
+          retention-days: 7
+          if-no-files-found: error

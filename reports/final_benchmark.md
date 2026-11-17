@@ -22,7 +22,8 @@
 | Invoice extraction | Tesseract + strict labeled-line parser | OCR-tolerant parser (measured); document AI / multimodal (not run) | Field accuracy, wrong-value rate, document exact match, latency | Held-out synthetic renders: clean 0.9725 → 0.9900, degraded scan 0.6225 → 0.8075, low-res 0.7100 → 0.7500 average field accuracy. See [Invoice OCR end to end](#invoice-ocr-end-to-end). Real documents not measured. |
 | Anomaly detection | Robust category log-MAD amount baseline | Isolation Forest candidate | Precision, recall, F1, PR-AUC, false-positive rate | Synthetic injection smoke only; see below. Real history and candidate comparison not run. |
 | Duplicate detection | Exact vendor/number rules | Similarity-assisted candidate | Precision, recall, F1, false-positive rate | Not run |
-| RAG | BM25 with the previous ASCII tokenizer | BM25 with CJK bigrams (measured); hybrid + reranker (not run) | Recall@1/5, MRR@10, latency | **Real data:** Official NTA Q&A (171 questions, real data): Recall@5 0.158 → 0.906, MRR@10 0.138 → 0.793. See [Japanese retrieval](#japanese-retrieval-on-the-official-nta-qa). The older exact-term synthetic smoke (1.00) is superseded. |
+| RAG | BM25 with the previous ASCII tokenizer | BM25 with CJK bigrams (measured); local-embedding vector and hybrid RRF (measured); neural embedding + reranker (not run) | Recall@1/5, MRR@10, latency | **Real data:** Official NTA Q&A (171 questions): Recall@5 ASCII 0.158 → bigram BM25 0.906; hashing vector 0.719; hybrid RRF 0.825. BM25 stays the default (ADR-025). See [Japanese retrieval](#japanese-retrieval-on-the-official-nta-qa). |
+| Japanese invoice OCR | Tesseract `jpn+eng` + strict parser | OCR-tolerant parser with Japanese labels (measured) | Field accuracy, wrong-value rate, documents fully correct, OCR latency | Held-out synthetic renders (seed 62, 30 per condition): clean 0.790 → 0.987, degraded 0.657 → 0.950; `eng` alone 0.000. See [Japanese invoice OCR](#japanese-invoice-ocr). Real scans not measured. |
 
 ## Engineering and workflow results
 
@@ -51,6 +52,20 @@ Reproduce from `backend/` with `uv run python -m app.scripts.benchmark_rag_nta_q
 |---|---|---|---|---|---|
 | ASCII-word tokenizer (previous) | 100 | 0.1111 | 0.1579 | 0.1377 | 0.0 / 12.0 |
 | CJK character bigrams (current) | 0 | 0.7135 | 0.9064 | 0.7935 | 78.6 / 110.0 |
+
+**Gap-closure Phase 8 re-run** (same PDF, SHA-256 `d0e50ed858d7ea7d…`, generated 2026-11-13; latency
+on a busier workstation than the first run, so only the relevance columns compare across runs):
+
+| Ranker | Recall@1 | Recall@5 | MRR@10 | Latency p50 / p95 ms |
+|---|---|---|---|---|
+| BM25, CJK bigrams | 0.7135 | 0.9064 | 0.7935 | 300.6 / 379.4 |
+| Local hashing embedding (hashing-ngram-256), cosine | 0.4211 | 0.7193 | 0.5396 | 24.6 / 31.3 |
+| Hybrid: BM25 + embedding, reciprocal rank fusion (k=60, top 20 each) | 0.5731 | 0.8246 | 0.6741 | 307.7 / 421.4 |
+
+The embedding is a deterministic feature-hashing stand-in (no model download, no network), not a semantic
+model, and fusing it with BM25 lowered every relevance metric on this in-domain set. BM25 therefore stays the
+production default (`PROCURAX_RETRIEVAL_MODE=bm25`); the pgvector index and hybrid path are built for a semantic
+embedding model, which must beat these numbers on this benchmark before it becomes the default.
 
 The previous tokenizer kept only `[a-z0-9]` words, so Japanese text produced no terms at all. Its few hits come
 from article numbers and Latin fragments. Character bigrams are the standard dictionary-free technique for CJK
@@ -99,6 +114,39 @@ mostly lost or merged lines on degraded scans, digits misread at low resolution,
 **What this does not show:** real supplier invoices, Japanese text, table extraction, stamps (hanko),
 photographed or multi-page documents, confidence calibration, or a document-AI comparison. These are
 synthetic renders with English labels, and the results are not production accuracy estimates.
+
+## Japanese invoice OCR
+
+Reproduce from `backend/` with `uv run python -m app.scripts.benchmark_invoice_ocr_ja --font <Japanese font>
+--seed 62 --output ../reports/invoice_ocr_ja_synthetic.json` (needs Docker and the API image).
+Raw output: [invoice_ocr_ja_synthetic.json](invoice_ocr_ja_synthetic.json).
+
+- **Data (synthetic):** 30 seeded qualified invoices (適格請求書) per condition with Japanese labels, full-width
+  colons, 円 amounts and 和文 dates, rendered with YuGothR.ttc; *clean* and *degraded* (rotation, blur, noise,
+  70 % scale, JPEG q45). Labels are generated with the images.
+- **Engine:** tesseract 5.5.0 inside the production API image (`tesseract-ocr-jpn`), `--psm 6`; per-image time
+  measured inside the container. Host: local Windows workstation via Docker Desktop.
+- **Method:** seed 61 was the development set: its errors showed OCR dropping the colon after Japanese labels and
+  reading the thousands comma in 円 amounts as a period. The OCR-tolerant parser now accepts a missing colon after
+  a *Japanese* label and treats a dot inside a 円 amount as a thousands separator (yen has no minor unit). The
+  table is the untouched held-out seed 62.
+
+| OCR languages / condition | Parser | Avg field accuracy | Wrong-value rate | Documents fully correct | OCR p50 / p95 ms |
+|---|---|---|---|---|---|
+| `eng` / clean | strict | 0.0000 | 0.0000 | 0.0000 | 443.5 / 516 |
+| `eng` / clean | ocr-tolerant | 0.0000 | 0.0000 | 0.0000 | 443.5 / 516 |
+| `eng` / degraded | strict | 0.0000 | 0.0000 | 0.0000 | 427.5 / 513 |
+| `eng` / degraded | ocr-tolerant | 0.0000 | 0.0000 | 0.0000 | 427.5 / 513 |
+| `jpn+eng` / clean | strict | 0.7900 | 0.1000 | 0.0000 | 698.0 / 779 |
+| `jpn+eng` / clean | ocr-tolerant | 0.9867 | 0.0067 | 0.8667 | 698.0 / 779 |
+| `jpn+eng` / degraded | strict | 0.6567 | 0.2167 | 0.0000 | 676.5 / 779 |
+| `jpn+eng` / degraded | ocr-tolerant | 0.9500 | 0.0300 | 0.5667 | 676.5 / 779 |
+
+`eng` alone recognises none of the Japanese labels, so no field is read. With `jpn+eng`, the strict parser leaves
+fields empty where OCR dropped a colon and, worse, turns `117.600円` into ¥117.6 (a confidently wrong value).
+Remaining errors: the registration number's leading `T` read as `1` with a failing check digit (left empty, never
+guessed) and `円` read as a digit. **Limits:** synthetic layouts and one font; no real scans, stamps, tables or
+handwriting; no document-AI or multimodal comparison.
 
 ## Failure analysis template
 

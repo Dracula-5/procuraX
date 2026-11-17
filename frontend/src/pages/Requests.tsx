@@ -1,17 +1,21 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Plus, Siren } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { PRStatusBadge } from "../components/badges";
 import { EmptyState, ErrorNotice, Input, PageHeader, Select, Spinner, Table, Td, Th } from "../components/ui";
 import { api } from "../lib/api";
-import { CATEGORIES, date, label, money, STATUS_LABELS } from "../lib/format";
+import { date, money } from "../lib/format";
+import { CATEGORY_KEYS, PR_STATUS_KEYS, useLabels } from "../lib/labels";
 import type { Page, PRSummary } from "../lib/types";
 
 const PAGE_SIZE = 25;
 
 export function Requests() {
+  const { t } = useTranslation();
+  const labels = useLabels();
   const { can } = useAuth();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -39,8 +43,8 @@ export function Requests() {
   const [search, setSearch] = useState(q);
   useEffect(() => {
     if (search === q) return;
-    const t = setTimeout(() => update("q", search), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => update("q", search), 300);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
@@ -62,55 +66,55 @@ export function Requests() {
   return (
     <>
       <PageHeader
-        title="Purchase requests"
-        subtitle="Requests you can see based on your role: your own, your team's, departments you head, or all."
+        title={t("requests.title")}
+        subtitle={t("requests.subtitle")}
         actions={
           can("purchase_request:create") && (
             <Link to="/app/requests/new" className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-fg hover:bg-primary-hover">
-              <Plus className="size-4" /> New request
+              <Plus className="size-4" /> {t("requests.new")}
             </Link>
           )
         }
       />
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Input placeholder="Search title or number" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search" />
-        <Select value={status} onChange={(e) => update("status", e.target.value)} aria-label="Status">
-          <option value="">All statuses</option>
-          {Object.entries(STATUS_LABELS).map(([k, v]) => (
+        <Input placeholder={t("requests.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)} aria-label={t("common.search")} />
+        <Select value={status} onChange={(e) => update("status", e.target.value)} aria-label={t("common.status")}>
+          <option value="">{t("requests.allStatuses")}</option>
+          {PR_STATUS_KEYS.map((k) => (
             <option key={k} value={k}>
-              {v}
+              {labels.prStatus(k)}
             </option>
           ))}
         </Select>
-        <Select value={category} onChange={(e) => update("category", e.target.value)} aria-label="Category">
-          <option value="">All categories</option>
-          {Object.entries(CATEGORIES).map(([k, v]) => (
+        <Select value={category} onChange={(e) => update("category", e.target.value)} aria-label={t("common.category")}>
+          <option value="">{t("requests.allCategories")}</option>
+          {CATEGORY_KEYS.map((k) => (
             <option key={k} value={k}>
-              {v}
+              {labels.category(k)}
             </option>
           ))}
         </Select>
-        <Select value={mine ? "1" : ""} onChange={(e) => update("mine", e.target.value)} aria-label="Scope">
-          <option value="">Everything I can see</option>
-          <option value="1">Only my requests</option>
+        <Select value={mine ? "1" : ""} onChange={(e) => update("mine", e.target.value)} aria-label={t("requests.scope")}>
+          <option value="">{t("requests.scopeAll")}</option>
+          <option value="1">{t("requests.scopeMine")}</option>
         </Select>
       </div>
       <ErrorNotice error={query.error} />
       {query.isLoading ? (
         <Spinner />
       ) : !query.data?.items.length ? (
-        <EmptyState title="No requests match these filters" />
+        <EmptyState title={t("requests.empty")} />
       ) : (
         <>
           <Table>
             <thead>
               <tr>
-                <Th>Request</Th>
-                <Th>Requester</Th>
-                <Th>Category</Th>
-                <Th className="text-right">Amount</Th>
-                <Th>Status</Th>
-                <Th>Created</Th>
+                <Th>{t("requests.col.request")}</Th>
+                <Th>{t("requests.col.requester")}</Th>
+                <Th>{t("common.category")}</Th>
+                <Th className="text-right">{t("common.amount")}</Th>
+                <Th>{t("common.status")}</Th>
+                <Th>{t("requests.col.created")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -124,7 +128,7 @@ export function Requests() {
                       {pr.number}
                       {pr.is_emergency && (
                         <span className="inline-flex items-center gap-0.5 text-warn">
-                          <Siren className="size-3" /> emergency
+                          <Siren className="size-3" /> {t("requests.emergency")}
                         </span>
                       )}
                     </div>
@@ -133,7 +137,7 @@ export function Requests() {
                     {pr.requester_name}
                     <div className="text-xs text-muted">{pr.department_name}</div>
                   </Td>
-                  <Td>{label(CATEGORIES, pr.category)}</Td>
+                  <Td>{labels.category(pr.category)}</Td>
                   <Td className="tabular text-right">{money(pr.estimated_total, pr.currency)}</Td>
                   <Td>
                     <PRStatusBadge status={pr.status} />
@@ -144,19 +148,17 @@ export function Requests() {
             </tbody>
           </Table>
           <div className="mt-3 flex items-center justify-between text-sm text-muted">
-            <span>
-              {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total}
-            </span>
+            <span>{t("common.range", { from: page * PAGE_SIZE + 1, to: Math.min((page + 1) * PAGE_SIZE, total), total })}</span>
             <span className="flex gap-2">
               <button className="rounded-md px-2 py-1 hover:bg-surface-2 disabled:opacity-40" disabled={page === 0} onClick={() => goToPage(page - 1)}>
-                Previous
+                {t("common.previous")}
               </button>
               <button
                 className="rounded-md px-2 py-1 hover:bg-surface-2 disabled:opacity-40"
                 disabled={(page + 1) * PAGE_SIZE >= total}
                 onClick={() => goToPage(page + 1)}
               >
-                Next
+                {t("common.next")}
               </button>
             </span>
           </div>
@@ -165,4 +167,3 @@ export function Requests() {
     </>
   );
 }
-

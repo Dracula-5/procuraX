@@ -10,6 +10,7 @@ Rules of the road:
 """
 
 import uuid
+from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -18,13 +19,18 @@ from sqlalchemy import ColumnElement, and_, exists, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.ai import advisors
+from app.core import metrics
+from app.core.config import get_settings
 from app.core.db import utcnow
 from app.core.errors import BusinessRuleViolation, ConflictError, NotFoundError, PermissionDeniedError
 from app.core.principal import Principal
 from app.core.sequences import next_document_number
 from app.domain.catalog import ContractStatus, SpendCategory, VendorRiskLevel, VendorStatus
 from app.domain.fiscal import fiscal_year_of
+from app.domain.fx import Rate
 from app.domain.money import format_money, quantize_money
+from app.domain.notifications import EventType
 from app.domain.policy.engine import evaluate
 from app.domain.policy.models import (
     ApproverRole,
@@ -38,7 +44,11 @@ from app.domain.rbac import APPROVER_ROLES, ROLE_DESCRIPTIONS, Permission, Role
 from app.domain.workflow.purchase_request import TRANSITIONS, PRAction, PRStatus, transition
 from app.domain.workflow.purchase_request import ApprovalStepStatus as Step
 from app.modules.audit import service as audit
+from app.modules.contracts import service as contract_service
+from app.modules.contracts.models import Contract
+from app.modules.finance import fx
 from app.modules.identity.models import Organization, User
+from app.modules.notifications import outbox
 from app.modules.organization import service as org_service
 from app.modules.organization.models import CostCenter, Department
 from app.modules.procurement import policy_service
@@ -151,6 +161,12 @@ async def _check_vendor(session: AsyncSession, principal: Principal, vendor_id: 
         raise NotFoundError("Vendor not found")
 
 
+def _item_in(item: PurchaseRequestItem) -> PRItemIn:
+    return PRItemIn(
+        description=item.description, quantity=item.quantity, unit_price=item.unit_price, uom=item.uom
+    )
+
+
 def _apply_items(pr: PurchaseRequest, items: list[PRItemIn], currency: str) -> None:
     # Update rows in place by position, then append/remove at the tail. Replacing the
     # whole collection would INSERT line 1 before DELETEing the old line 1 and trip the
@@ -185,6 +201,12 @@ def _apply_items(pr: PurchaseRequest, items: list[PRItemIn], currency: str) -> N
     )
 
 
+def _refresh_base_amount(pr: PurchaseRequest, org: Organization) -> None:
+    """Base-currency drafts carry their base amount; other currencies get it from the rate at submission."""
+    pr.base_amount = pr.estimated_total if pr.currency == org.base_currency else None
+    pr.fx_rate = pr.fx_rate_on = pr.fx_source = None
+
+
 async def create_request(session: AsyncSession, principal: Principal, data: PRCreate) -> PurchaseRequest:
     org = await session.get(Organization, principal.org_id)
     assert org is not None
@@ -201,7 +223,7 @@ async def create_request(session: AsyncSession, principal: Principal, data: PRCr
         department_id=cc.department_id if cc else principal.department_id,
         cost_center_id=cc.id if cc else None,
         category=data.category.value,
-        currency=org.base_currency,
+        currency=data.currency or org.base_currency,
         required_by=data.required_by,
         preferred_vendor_id=data.preferred_vendor_id,
         is_emergency=data.is_emergency,
@@ -210,7 +232,8 @@ async def create_request(session: AsyncSession, principal: Principal, data: PRCr
         items=[],
         approvals=[],
     )
-    _apply_items(pr, data.items, org.base_currency)
+    _apply_items(pr, data.items, pr.currency)
+    _refresh_base_amount(pr, org)
     session.add(pr)
     await session.flush()
     await audit.record(
@@ -255,9 +278,18 @@ async def update_request(
     if data.category is not None:
         pr.category = data.category.value
         changed.append("category")
+    if data.currency is not None and data.currency != pr.currency:
+        pr.currency = data.currency
+        changed.append("currency")
+        if data.items is None:  # re-round the existing lines in the new currency
+            _apply_items(pr, [_item_in(i) for i in sorted(pr.items, key=lambda i: i.line_no)], pr.currency)
     if data.items is not None:
         _apply_items(pr, data.items, pr.currency)
         changed.append("items")
+    if changed:
+        org = await session.get(Organization, principal.org_id)
+        assert org is not None
+        _refresh_base_amount(pr, org)
 
     if changed:
         await audit.record(
@@ -279,22 +311,43 @@ async def update_request(
 # ---------------------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class _Snapshot:
+    """What submission records on the request: rate, base amount and covering contract."""
+
+    base_amount: Decimal | None
+    rate: Rate | None
+    contract_id: uuid.UUID | None
+
+
 async def _build_facts(
     session: AsyncSession, pr: PurchaseRequest, org: Organization, window_days: int
-) -> tuple[RequestFacts, int]:
-    fiscal_year = fiscal_year_of(_local_today(org), org.fiscal_year_start_month)
+) -> tuple[RequestFacts, int, _Snapshot]:
+    today = _local_today(org)
+    fiscal_year = fiscal_year_of(today, org.fiscal_year_start_month)
+    # Requests in another currency are converted at the latest recorded rate (VAL-004 blocks without one).
+    base_amount, rate = await fx.convert(
+        session, org.id, org.base_currency, pr.estimated_total, pr.currency, today
+    )
 
     vendor_facts = None
+    contract_id = None
     if pr.preferred_vendor_id:
         v = await session.get(Vendor, pr.preferred_vendor_id)
         if v is not None:
+            # Contract records decide the status when the vendor has any; the vendor field is the fallback.
+            position = await contract_service.position(
+                session, org, v.id, pr.category, today, exclude_request_id=pr.id
+            )
+            contract_id = position.contract_id
             vendor_facts = VendorFacts(
                 id=str(v.id),
                 name=v.name,
                 status=VendorStatus(v.status),
                 risk_level=VendorRiskLevel(v.risk_level),
-                contract_status=ContractStatus(v.contract_status),
+                contract_status=ContractStatus(position.status or v.contract_status),
                 categories=tuple(SpendCategory(c) for c in v.categories),
+                contract=position.facts,
             )
 
     budget_facts = None
@@ -310,9 +363,7 @@ async def _build_facts(
     since = utcnow() - timedelta(days=window_days)
     count, total, numbers = (
         await session.execute(
-            select(
-                func.count(), func.coalesce(func.sum(PR.estimated_total), 0), func.array_agg(PR.number)
-            ).where(
+            select(func.count(), func.coalesce(func.sum(PR.base_amount), 0), func.array_agg(PR.number)).where(
                 PR.org_id == org.id,
                 PR.requester_id == pr.requester_id,
                 PR.category == pr.category,
@@ -324,11 +375,12 @@ async def _build_facts(
     ).one()
 
     facts = RequestFacts(
-        amount=pr.estimated_total,
+        amount=base_amount if base_amount is not None else pr.estimated_total,
         currency=pr.currency,
         category=SpendCategory(pr.category),
         line_count=len(pr.items),
         has_cost_center=pr.cost_center_id is not None,
+        has_exchange_rate=base_amount is not None,
         is_emergency=pr.is_emergency,
         justification=pr.justification or "",
         vendor=vendor_facts,
@@ -337,7 +389,7 @@ async def _build_facts(
         recent_similar_count=int(count or 0),
         recent_similar_numbers=tuple(sorted(n for n in (numbers or []) if n)),
     )
-    return facts, fiscal_year
+    return facts, fiscal_year, _Snapshot(base_amount, rate, contract_id)
 
 
 async def preview_policy(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) -> PolicyEvaluation:
@@ -346,7 +398,7 @@ async def preview_policy(session: AsyncSession, principal: Principal, pr_id: uui
     org = await session.get(Organization, principal.org_id)
     assert org is not None
     policy_row, config = await policy_service.get_active(session, org.id)
-    facts, _ = await _build_facts(session, pr, org, config.split_purchase_window_days)
+    facts, _, _ = await _build_facts(session, pr, org, config.split_purchase_window_days)
     return evaluate(facts, config, policy_version=policy_row.version)
 
 
@@ -464,6 +516,27 @@ def _require_action(pr: PurchaseRequest, action: PRAction) -> PRStatus:
     return status
 
 
+def _notify_step(
+    session: AsyncSession, pr: PurchaseRequest, step: Approval, actor_user_id: uuid.UUID | None
+) -> None:
+    """Queue 'approval needed' for a step that just became actionable (same transaction)."""
+    outbox.emit(
+        session,
+        org_id=pr.org_id,
+        event_type=EventType.APPROVAL_ROUTED,
+        aggregate_type="approval",
+        aggregate_id=step.id,
+        actor_user_id=actor_user_id,
+        recipient_user_ids=[step.assigned_user_id],
+        recipient_roles=[] if step.assigned_user_id else [step.approver_role],
+        link=f"/app/requests/{pr.id}",
+        number=pr.number,
+        title=pr.title,
+        role=step.approver_role,
+        **outbox.money_facts(pr.estimated_total, pr.currency),
+    )
+
+
 async def submit(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) -> PurchaseRequest:
     pr = await _get(session, principal, pr_id, for_update=True)
     if pr.requester_id != principal.user_id:
@@ -473,7 +546,7 @@ async def submit(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) 
     org = await session.get(Organization, principal.org_id)
     assert org is not None
     policy_row, config = await policy_service.get_active(session, org.id)
-    facts, fiscal_year = await _build_facts(session, pr, org, config.split_purchase_window_days)
+    facts, fiscal_year, snapshot = await _build_facts(session, pr, org, config.split_purchase_window_days)
     evaluation = evaluate(facts, config, policy_version=policy_row.version)
 
     target = {
@@ -485,6 +558,11 @@ async def submit(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) 
     pr.status = transition(status, PRAction.SUBMIT, target).value
     pr.submission_count += 1
     pr.fiscal_year = fiscal_year
+    pr.base_amount = snapshot.base_amount
+    pr.fx_rate = snapshot.rate.rate if snapshot.rate else None
+    pr.fx_rate_on = snapshot.rate.valid_on if snapshot.rate else None
+    pr.fx_source = snapshot.rate.source if snapshot.rate else None
+    pr.contract_id = snapshot.contract_id
     pr.policy_version = policy_row.version
     pr.policy_evaluation = evaluation.model_dump(mode="json")
     pr.submitted_at = now
@@ -504,6 +582,17 @@ async def submit(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) 
             "policy_version": policy_row.version,
             "outcome": evaluation.outcome,
             "rule_ids": [h.rule_id for h in evaluation.hits],
+            **(
+                {
+                    "fx": {
+                        "rate": str(snapshot.rate.rate),
+                        "on": str(snapshot.rate.valid_on),
+                        "source": snapshot.rate.source,
+                    }
+                }
+                if snapshot.rate
+                else {}
+            ),
         },
     )
 
@@ -549,7 +638,9 @@ async def submit(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) 
                     status=Step.WAITING.value,
                 )
             )
-        _activate_next(pr, config.approval_sla_hours)
+        first_step = _activate_next(pr, config.approval_sla_hours)
+        if first_step is not None:
+            _notify_step(session, pr, first_step, principal.user_id)
         chain = " → ".join(_role_label(s.role.value) for s in evaluation.required_approvals)
         await audit.record(
             session,
@@ -566,6 +657,10 @@ async def submit(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) 
                 ]
             },
         )
+    metrics.POLICY_OUTCOMES.labels(evaluation.outcome).inc()
+    if get_settings().ai_advisories_enabled:
+        # Recorded beside the request for reviewers; the decision above is already final (ADR-024).
+        await advisors.advise_on_submission(session, pr, principal.user_id)
     await session.commit()
     return pr
 
@@ -594,12 +689,13 @@ async def _final_budget_recheck(
     committed = await org_service.committed_amount(
         session, pr.org_id, pr.cost_center_id, pr.fiscal_year, exclude_request_id=pr.id
     )
-    if committed + pr.estimated_total > budget.amount:
-        fmt = lambda v: format_money(v, pr.currency)  # noqa: E731
+    amount = pr.base_amount if pr.base_amount is not None else pr.estimated_total
+    if committed + amount > budget.amount:
+        fmt = lambda v: format_money(v, budget.currency)  # noqa: E731
         return (
             "BUD-002",
             f"Budget changed since submission: committed {fmt(committed)} + this request "
-            f"{fmt(pr.estimated_total)} exceeds the FY{pr.fiscal_year} budget {fmt(budget.amount)}.",
+            f"{fmt(amount)} exceeds the FY{pr.fiscal_year} budget {fmt(budget.amount)}.",
         )
     return None
 
@@ -632,25 +728,28 @@ async def approve(
     )
 
     _, config = await policy_service.get_active(session, pr.org_id)
-    if _activate_next(pr, config.approval_sla_hours) is None:
+    next_step = _activate_next(pr, config.approval_sla_hours)
+    if next_step is not None:
+        _notify_step(session, pr, next_step, principal.user_id)
+    else:
         recheck = await _final_budget_recheck(session, pr, _round_steps(pr))
         if recheck is not None:
             rule_id, reason = recheck
             steps = _round_steps(pr)
-            pr.approvals.append(
-                Approval(
-                    org_id=pr.org_id,
-                    round=pr.submission_count,
-                    sequence=max(max(s.sequence for s in steps) + 1, int(StepOrder.FINANCE_MANAGER)),
-                    approver_role=ApproverRole.FINANCE_MANAGER.value,
-                    assigned_user_id=None,
-                    rule_ids=[rule_id],
-                    reasons=[reason],
-                    status=Step.PENDING.value,
-                    activated_at=now,
-                    due_at=now + timedelta(hours=config.approval_sla_hours),
-                )
+            finance_step = Approval(
+                org_id=pr.org_id,
+                round=pr.submission_count,
+                sequence=max(max(s.sequence for s in steps) + 1, int(StepOrder.FINANCE_MANAGER)),
+                approver_role=ApproverRole.FINANCE_MANAGER.value,
+                assigned_user_id=None,
+                rule_ids=[rule_id],
+                reasons=[reason],
+                status=Step.PENDING.value,
+                activated_at=now,
+                due_at=now + timedelta(hours=config.approval_sla_hours),
             )
+            pr.approvals.append(finance_step)
+            _notify_step(session, pr, finance_step, principal.user_id)
             await audit.record(
                 session,
                 org_id=pr.org_id,
@@ -675,6 +774,20 @@ async def approve(
                 summary=f"{pr.number} fully approved",
                 changes={"status": {"before": status.value, "after": PRStatus.APPROVED.value}},
             )
+            outbox.emit(
+                session,
+                org_id=pr.org_id,
+                event_type=EventType.REQUEST_APPROVED,
+                aggregate_type="purchase_request",
+                aggregate_id=pr.id,
+                actor_user_id=principal.user_id,
+                recipient_user_ids=[pr.requester_id],
+                link=f"/app/requests/{pr.id}",
+                number=pr.number,
+                title=pr.title,
+                **outbox.money_facts(pr.estimated_total, pr.currency),
+            )
+    metrics.APPROVAL_DECISIONS.labels("approve").inc()
     await session.commit()
     return pr
 
@@ -710,6 +823,21 @@ async def reject(
         changes={"status": {"before": status.value, "after": PRStatus.REJECTED.value}},
         meta={"approval_id": str(step.id), "sequence": step.sequence},
     )
+    outbox.emit(
+        session,
+        org_id=pr.org_id,
+        event_type=EventType.REQUEST_REJECTED,
+        aggregate_type="purchase_request",
+        aggregate_id=pr.id,
+        actor_user_id=principal.user_id,
+        recipient_user_ids=[pr.requester_id],
+        link=f"/app/requests/{pr.id}",
+        number=pr.number,
+        title=pr.title,
+        reason=comment,
+        role=step.approver_role,
+    )
+    metrics.APPROVAL_DECISIONS.labels("reject").inc()
     await session.commit()
     return pr
 
@@ -781,6 +909,7 @@ _SUMMARY_COLUMNS = (
     PR.category,
     PR.currency,
     PR.estimated_total,
+    PR.base_amount,
     PR.requester_id,
     _Requester.full_name.label("requester_name"),
     PR.department_id,
@@ -849,9 +978,19 @@ async def detail(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) 
         names = dict(
             (await session.execute(select(User.id, User.full_name).where(User.id.in_(user_ids)))).all()
         )
+    contract_number = (
+        await session.scalar(select(Contract.number).where(Contract.id == pr.contract_id))
+        if pr.contract_id
+        else None
+    )
     now = utcnow()
     return PRDetailOut(
         **dict(summary_row._mapping),
+        fx_rate=pr.fx_rate,
+        fx_rate_on=pr.fx_rate_on,
+        fx_source=pr.fx_source,
+        contract_id=pr.contract_id,
+        contract_number=contract_number,
         justification=pr.justification,
         fiscal_year=pr.fiscal_year,
         policy_version=pr.policy_version,
