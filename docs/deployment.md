@@ -23,6 +23,8 @@ deploy and maintenance workflows log "not configured" and do nothing.
 
 1. neon.tech → **New project** → PostgreSQL **16**. Pick the region nearest your Render service: for
    Render **Oregon (US West)** choose **AWS US West 2 (Oregon)**; for Render Singapore choose AWS Singapore.
+   The live demo runs in Oregon (`render.yaml` says `region: oregon`). Render fixes a region when the
+   service is created, so moving closer to Japan means creating a new Singapore service and database.
 2. **SQL Editor**: create the least-privilege runtime role, with your own strong password.
 
    ```sql
@@ -115,6 +117,44 @@ policy and approval, analytics, RBAC, assistant, registration lock) and exits no
 - Open the Netlify URL. The first load after a quiet period shows "Waking up the free-tier API" for up
   to a minute; then the public-demo banner appears and **Create organisation** is hidden.
 - Sign in as any persona on the login page; [user_personas.md](user_personas.md) has walkthroughs.
+
+## Notifications (optional channels)
+
+In-app notifications work with no extra setup: the API runs the outbox worker on an interval
+(`PROCURAX_NOTIFICATION_WORKER_INTERVAL_SECONDS=30` in `render.yaml`), and while a free instance sleeps
+the hourly *Demo maintenance* workflow runs one batch (`python -m app.worker --once`). A dedicated
+Render worker is a paid service type; `render.yaml` has a commented block for it.
+
+E-mail and Slack/Teams stay **off** until you choose to provide credentials (they may cost money with
+some providers):
+
+| To enable | Set on the Render service |
+|---|---|
+| E-mail | `PROCURAX_EMAIL_ENABLED=true`, `PROCURAX_SMTP_HOST`, `PROCURAX_SMTP_PORT`, `PROCURAX_SMTP_USERNAME`, `PROCURAX_SMTP_PASSWORD`, `PROCURAX_SMTP_STARTTLS=true`, `PROCURAX_EMAIL_FROM` (a sender your provider has verified) |
+| Slack / Teams | `PROCURAX_WEBHOOKS_ENABLED=true` and `PROCURAX_DATA_ENCRYPTION_KEY` (32+ random characters; the blueprint generates one). Each tenant admin then pastes an incoming-webhook URL under *Notifications → Team channels* |
+
+The public demo's personas use `example.com` addresses, which cannot receive mail. Failed deliveries are
+retried with backoff and then listed under *Notifications → Failed deliveries* for the org admin.
+
+## Invoice files (object storage)
+
+Production refuses to store invoice files on the container's disk (Render's disk is not durable). To
+enable uploads, create a bucket and set on the Render service:
+
+| Setting | Value |
+|---|---|
+| `PROCURAX_STORAGE_BACKEND` | `s3` |
+| `PROCURAX_S3_BUCKET` | your bucket (private; block public access) |
+| `PROCURAX_S3_ENDPOINT_URL` | empty for AWS S3; `https://<account>.r2.cloudflarestorage.com` for Cloudflare R2 |
+| `PROCURAX_S3_REGION` | e.g. `ap-northeast-1`, or `auto` for R2 |
+| `PROCURAX_S3_ACCESS_KEY_ID` / `PROCURAX_S3_SECRET_ACCESS_KEY` | a key limited to `s3:PutObject` and `s3:GetObject` on that bucket |
+| `PROCURAX_DOCUMENT_RETENTION_YEARS` | `7` (Japanese corporate tax law; longer if losses are carried forward) |
+
+Each file records its retain-until date; ProcuraX never deletes files. Use bucket versioning, or object
+lock in governance/compliance mode, if you need storage-level enforcement. Optional virus scanning needs a
+reachable `clamd` (`PROCURAX_CLAMAV_ENABLED`, `PROCURAX_CLAMAV_HOST`); there is no free managed ClamAV,
+so on the free tier leave it off and decide whether `PROCURAX_ALLOW_UNSCANNED_DOCUMENTS=true` is
+acceptable (without it, invoices with attached files cannot be paid).
 
 ## If something does not work
 

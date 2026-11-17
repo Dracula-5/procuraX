@@ -25,6 +25,7 @@ from app.core.sequences import next_document_number
 from app.domain.catalog import ContractStatus, SpendCategory, VendorRiskLevel, VendorStatus
 from app.domain.fiscal import fiscal_year_of
 from app.domain.money import format_money, quantize_money
+from app.domain.notifications import EventType
 from app.domain.policy.engine import evaluate
 from app.domain.policy.models import (
     ApproverRole,
@@ -39,6 +40,7 @@ from app.domain.workflow.purchase_request import TRANSITIONS, PRAction, PRStatus
 from app.domain.workflow.purchase_request import ApprovalStepStatus as Step
 from app.modules.audit import service as audit
 from app.modules.identity.models import Organization, User
+from app.modules.notifications import outbox
 from app.modules.organization import service as org_service
 from app.modules.organization.models import CostCenter, Department
 from app.modules.procurement import policy_service
@@ -464,6 +466,27 @@ def _require_action(pr: PurchaseRequest, action: PRAction) -> PRStatus:
     return status
 
 
+def _notify_step(
+    session: AsyncSession, pr: PurchaseRequest, step: Approval, actor_user_id: uuid.UUID | None
+) -> None:
+    """Queue 'approval needed' for a step that just became actionable (same transaction)."""
+    outbox.emit(
+        session,
+        org_id=pr.org_id,
+        event_type=EventType.APPROVAL_ROUTED,
+        aggregate_type="approval",
+        aggregate_id=step.id,
+        actor_user_id=actor_user_id,
+        recipient_user_ids=[step.assigned_user_id],
+        recipient_roles=[] if step.assigned_user_id else [step.approver_role],
+        link=f"/app/requests/{pr.id}",
+        number=pr.number,
+        title=pr.title,
+        role=step.approver_role,
+        **outbox.money_facts(pr.estimated_total, pr.currency),
+    )
+
+
 async def submit(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) -> PurchaseRequest:
     pr = await _get(session, principal, pr_id, for_update=True)
     if pr.requester_id != principal.user_id:
@@ -549,7 +572,9 @@ async def submit(session: AsyncSession, principal: Principal, pr_id: uuid.UUID) 
                     status=Step.WAITING.value,
                 )
             )
-        _activate_next(pr, config.approval_sla_hours)
+        first_step = _activate_next(pr, config.approval_sla_hours)
+        if first_step is not None:
+            _notify_step(session, pr, first_step, principal.user_id)
         chain = " → ".join(_role_label(s.role.value) for s in evaluation.required_approvals)
         await audit.record(
             session,
@@ -632,25 +657,28 @@ async def approve(
     )
 
     _, config = await policy_service.get_active(session, pr.org_id)
-    if _activate_next(pr, config.approval_sla_hours) is None:
+    next_step = _activate_next(pr, config.approval_sla_hours)
+    if next_step is not None:
+        _notify_step(session, pr, next_step, principal.user_id)
+    else:
         recheck = await _final_budget_recheck(session, pr, _round_steps(pr))
         if recheck is not None:
             rule_id, reason = recheck
             steps = _round_steps(pr)
-            pr.approvals.append(
-                Approval(
-                    org_id=pr.org_id,
-                    round=pr.submission_count,
-                    sequence=max(max(s.sequence for s in steps) + 1, int(StepOrder.FINANCE_MANAGER)),
-                    approver_role=ApproverRole.FINANCE_MANAGER.value,
-                    assigned_user_id=None,
-                    rule_ids=[rule_id],
-                    reasons=[reason],
-                    status=Step.PENDING.value,
-                    activated_at=now,
-                    due_at=now + timedelta(hours=config.approval_sla_hours),
-                )
+            finance_step = Approval(
+                org_id=pr.org_id,
+                round=pr.submission_count,
+                sequence=max(max(s.sequence for s in steps) + 1, int(StepOrder.FINANCE_MANAGER)),
+                approver_role=ApproverRole.FINANCE_MANAGER.value,
+                assigned_user_id=None,
+                rule_ids=[rule_id],
+                reasons=[reason],
+                status=Step.PENDING.value,
+                activated_at=now,
+                due_at=now + timedelta(hours=config.approval_sla_hours),
             )
+            pr.approvals.append(finance_step)
+            _notify_step(session, pr, finance_step, principal.user_id)
             await audit.record(
                 session,
                 org_id=pr.org_id,
@@ -674,6 +702,19 @@ async def approve(
                 entity_id=pr.id,
                 summary=f"{pr.number} fully approved",
                 changes={"status": {"before": status.value, "after": PRStatus.APPROVED.value}},
+            )
+            outbox.emit(
+                session,
+                org_id=pr.org_id,
+                event_type=EventType.REQUEST_APPROVED,
+                aggregate_type="purchase_request",
+                aggregate_id=pr.id,
+                actor_user_id=principal.user_id,
+                recipient_user_ids=[pr.requester_id],
+                link=f"/app/requests/{pr.id}",
+                number=pr.number,
+                title=pr.title,
+                **outbox.money_facts(pr.estimated_total, pr.currency),
             )
     await session.commit()
     return pr
@@ -709,6 +750,20 @@ async def reject(
         summary=f"Rejected at {_role_label(step.approver_role)} step by {principal.full_name}: {comment}",
         changes={"status": {"before": status.value, "after": PRStatus.REJECTED.value}},
         meta={"approval_id": str(step.id), "sequence": step.sequence},
+    )
+    outbox.emit(
+        session,
+        org_id=pr.org_id,
+        event_type=EventType.REQUEST_REJECTED,
+        aggregate_type="purchase_request",
+        aggregate_id=pr.id,
+        actor_user_id=principal.user_id,
+        recipient_user_ids=[pr.requester_id],
+        link=f"/app/requests/{pr.id}",
+        number=pr.number,
+        title=pr.title,
+        reason=comment,
+        role=step.approver_role,
     )
     await session.commit()
     return pr

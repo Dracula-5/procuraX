@@ -1,5 +1,6 @@
+import { useTranslation } from "react-i18next";
+import { useLabels } from "../lib/labels";
 import { Badge, type Tone } from "./ui";
-import { label, ROLE_LABELS, STATUS_LABELS } from "../lib/format";
 
 const PR_TONES: Record<string, Tone> = {
   draft: "neutral",
@@ -10,9 +11,10 @@ const PR_TONES: Record<string, Tone> = {
   cancelled: "neutral",
 };
 
-export const PRStatusBadge = ({ status }: { status: string }) => (
-  <Badge tone={PR_TONES[status] ?? "neutral"}>{label(STATUS_LABELS, status)}</Badge>
-);
+export function PRStatusBadge({ status }: { status: string }) {
+  const labels = useLabels();
+  return <Badge tone={PR_TONES[status] ?? "neutral"}>{labels.prStatus(status)}</Badge>;
+}
 
 const STEP_TONES: Record<string, Tone> = {
   waiting: "neutral",
@@ -23,26 +25,40 @@ const STEP_TONES: Record<string, Tone> = {
   cancelled: "neutral",
 };
 
-export const StepStatusBadge = ({ status }: { status: string }) => (
-  <Badge tone={STEP_TONES[status] ?? "neutral"}>{status}</Badge>
-);
+export function StepStatusBadge({ status }: { status: string }) {
+  const labels = useLabels();
+  return <Badge tone={STEP_TONES[status] ?? "neutral"}>{labels.stepStatus(status)}</Badge>;
+}
 
 const VENDOR_TONES: Record<string, Tone> = { approved: "ok", pending_review: "warn", suspended: "danger", blocked: "danger" };
 const RISK_TONES: Record<string, Tone> = { low: "ok", medium: "warn", high: "danger", unknown: "neutral" };
 const CONTRACT_TONES: Record<string, Tone> = { active: "ok", expired: "warn", none: "neutral" };
 
-export const VendorStatusBadge = ({ status }: { status: string }) => (
-  <Badge tone={VENDOR_TONES[status] ?? "neutral"}>{status.replace("_", " ")}</Badge>
-);
-export const RiskBadge = ({ level }: { level: string }) => <Badge tone={RISK_TONES[level] ?? "neutral"}>risk: {level}</Badge>;
-export const ContractBadge = ({ status }: { status: string }) => (
-  <Badge tone={CONTRACT_TONES[status] ?? "neutral"}>contract: {status}</Badge>
-);
+export function VendorStatusBadge({ status }: { status: string }) {
+  const labels = useLabels();
+  return <Badge tone={VENDOR_TONES[status] ?? "neutral"}>{labels.vendorStatus(status)}</Badge>;
+}
 
-export const RoleBadge = ({ role }: { role: string }) => <Badge tone="primary">{label(ROLE_LABELS, role)}</Badge>;
+export function RiskBadge({ level }: { level: string }) {
+  const { t } = useTranslation();
+  const labels = useLabels();
+  return <Badge tone={RISK_TONES[level] ?? "neutral"}>{t("badges.risk", { level: labels.risk(level) })}</Badge>;
+}
+
+export function ContractBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
+  const labels = useLabels();
+  return <Badge tone={CONTRACT_TONES[status] ?? "neutral"}>{t("badges.contract", { status: labels.contract(status) })}</Badge>;
+}
+
+export function RoleBadge({ role }: { role: string }) {
+  const labels = useLabels();
+  return <Badge tone="primary">{labels.role(role)}</Badge>;
+}
 
 const SEVERITY_TONES: Record<string, Tone> = { block: "danger", route: "info", flag: "warn", info: "ok" };
-export const SeverityBadge = ({ severity }: { severity: string }) => (
-  <Badge tone={SEVERITY_TONES[severity] ?? "neutral"}>{severity}</Badge>
-);
 
+export function SeverityBadge({ severity }: { severity: string }) {
+  const labels = useLabels();
+  return <Badge tone={SEVERITY_TONES[severity] ?? "neutral"}>{labels.severity(severity)}</Badge>;
+}

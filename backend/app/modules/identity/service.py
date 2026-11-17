@@ -42,6 +42,7 @@ from app.modules.identity.schemas import (
     MeOut,
     OrgOut,
     OrgUpdate,
+    PreferencesUpdate,
     RegisterRequest,
     RoleOut,
     TokenResponse,
@@ -83,6 +84,7 @@ async def _me(session: AsyncSession, user: User) -> MeOut:
         roles=roles,
         permissions=sorted(p.value for p in perms),
         organization=OrgOut.model_validate(org),
+        locale=user.locale,
     )
 
 
@@ -226,6 +228,15 @@ async def login(email: str, password: str) -> TokenResponse:
 async def me(session: AsyncSession, principal: Principal) -> MeOut:
     user = await session.get(User, principal.user_id)
     assert user is not None
+    return await _me(session, user)
+
+
+async def update_preferences(session: AsyncSession, principal: Principal, data: PreferencesUpdate) -> MeOut:
+    # A display preference, not a business or access change, so it is not written to the audit trail.
+    user = await session.get(User, principal.user_id)
+    assert user is not None
+    user.locale = data.locale.value if data.locale else None
+    await session.commit()
     return await _me(session, user)
 
 

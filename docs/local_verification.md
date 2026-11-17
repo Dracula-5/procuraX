@@ -28,6 +28,42 @@ Two equivalent ways to run the idempotent sweep that reassigns an overdue pendin
 
 Both take the transaction-scoped PostgreSQL advisory lock `pg_try_advisory_xact_lock(7221301)`, so several API replicas plus a cron job never sweep concurrently; a run that finds the lock held reports `skipped`. If the reporting chain has no eligible manager, the step stays pending and the run reports it in `no_target`. A test holds the lock from another connection and asserts the sweep is skipped.
 
+## Notifications (outbox worker, Mailpit)
+
+`docker compose up -d` also starts Mailpit (SMTP `localhost:1025`, web UI http://localhost:8025). Run the
+worker next to the API:
+
+```bash
+cd backend
+PROCURAX_EMAIL_ENABLED=true uv run python -m app.worker        # or --once for a single batch
+```
+
+Recorded check (2026-11-13, local Windows workstation, Docker Desktop): with the API under uvicorn and
+the demo seed loaded, the IT manager persona chose Japanese, the IT engineer submitted a ¥90,000 request,
+and one `python -m app.worker --once` run (a separate process) fanned out 7 pending events into 14
+deliveries and sent 7 e-mails. Mailpit held `承認依頼：PR-2026-000008` addressed to the manager, with a
+link to the request; the manager's in-app inbox showed the same event; two further worker runs found
+nothing to do. Slack/Teams posting is covered by tests against a local HTTP receiver; no real Slack or
+Teams workspace was used.
+
+## Invoice files (RustFS, ClamAV)
+
+`docker compose up -d` starts RustFS on :9000 (MinIO no longer publishes community images). Set
+`PROCURAX_STORAGE_BACKEND=s3`, `PROCURAX_S3_ENDPOINT_URL=http://127.0.0.1:9000`,
+`PROCURAX_S3_ACCESS_KEY_ID=procurax`, `PROCURAX_S3_SECRET_ACCESS_KEY=procurax-dev-secret` and run
+`uv run python -m app.scripts.init_storage` once. Optional scanning: `docker compose --profile scan up -d clamav`
+and `PROCURAX_CLAMAV_ENABLED=true`. `PROCURAX_TEST_S3_ENDPOINT` and `PROCURAX_TEST_CLAMAV_PORT` enable the
+opt-in tests against these servers.
+
+Recorded checks (2026-11-13, local Windows workstation): RustFS 1.0.5 and SeaweedFS both enforced
+`If-None-Match: *` (second write → `PreconditionFailed`) and served presigned GETs; the S3 storage test
+passes against RustFS with SigV4 URLs (the first run caught boto3 signing with legacy SigV2 against a
+custom endpoint). With ClamAV 1.4 (`clamav/clamav:1.4`): a clean 2-page PDF scanned clean, both directly
+and through upload → worker; a raw EICAR file was detected (`Eicar-Test-Signature`); EICAR appended inside
+a PDF was *not* detected, as the EICAR convention requires the string at the start of the file. Because
+uploads must be valid PDF/PNG/JPEG/TIFF, the infected path through the API is tested with a clamd
+protocol stand-in.
+
 ## Local invoice OCR
 
 The P2P page accepts PDF/image uploads up to 18 MiB and calls the local Tesseract adapter; extracted fields are parsed in OCR-tolerant mode and returned for human review, never persisted as an invoice.

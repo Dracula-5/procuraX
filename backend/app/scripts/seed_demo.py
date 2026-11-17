@@ -111,7 +111,13 @@ VENDORS = [
 
 _TEARDOWN_ORDER = [
     "audit_logs",
+    "notification_deliveries",
+    "notification_outbox",
+    "notifications",
+    "notification_preferences",
+    "notification_channels",
     "payments",
+    "invoice_documents",
     "invoices",
     "goods_receipts",
     "purchase_order_items",
@@ -141,6 +147,9 @@ async def _delete_demo(admin_url: str) -> None:
     async with engine.begin() as conn:
         # Managed PostgreSQL (e.g. Neon) owners are not superusers, so FORCE RLS applies to them too.
         await conn.execute(_BYPASS_RLS)
+        # Linked invoice files are undeletable without this transaction-local flag (migration 0015);
+        # the fictional demo tenant is the one place they are purged. Stored objects are left in place.
+        await conn.execute(text("SELECT set_config('app.document_purge', 'on', true)"))
         org_id = await conn.scalar(text("SELECT id FROM organizations WHERE slug = :s"), {"s": DEMO_SLUG})
         if org_id:
             # Break the circular references first, then delete children before parents.

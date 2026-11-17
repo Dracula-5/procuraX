@@ -20,5 +20,39 @@ services:
       timeout: 3s
       retries: 20
 
+  # Local SMTP sink for notification e-mail (gap-closure Phase 2). Nothing leaves the machine.
+  # Web UI: http://localhost:8025 · SMTP: localhost:1025 (PROCURAX_SMTP_HOST/PORT defaults).
+  mailpit:
+    image: axllent/mailpit:v1.27
+    container_name: procurax-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # S3-compatible object storage for invoice files (gap-closure Phase 3). MinIO no longer publishes
+  # community container images, so RustFS (Apache-2.0, MinIO-compatible API and keys) stands in.
+  # Console: http://localhost:9001 · S3: http://localhost:9000 (PROCURAX_STORAGE_BACKEND=s3).
+  object-storage:
+    image: rustfs/rustfs:1.0.5
+    container_name: procurax-object-storage
+    environment:
+      RUSTFS_ACCESS_KEY: procurax
+      RUSTFS_SECRET_KEY: procurax-dev-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - procurax_objects:/data
+
+  # Optional virus scanner: `docker compose --profile scan up -d clamav` (downloads ~300 MB of
+  # signatures on first start), then PROCURAX_CLAMAV_ENABLED=true.
+  clamav:
+    image: clamav/clamav:1.4
+    profiles: ["scan"]
+    container_name: procurax-clamav
+    ports:
+      - "3310:3310"
+
 volumes:
+  procurax_objects:
   procurax_pg:

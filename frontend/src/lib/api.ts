@@ -1,3 +1,5 @@
+import { validationMessage } from "./validation";
+
 // Same-origin "/api/v1" by default; a separately hosted API sets VITE_API_BASE_URL at build time.
 const BASE = ((import.meta.env.VITE_API_BASE_URL as string | undefined) || "/api/v1").replace(/\/+$/, "");
 const TOKEN_KEY = "procurax.token";
@@ -40,8 +42,8 @@ export class ApiError extends Error {
   fieldErrors(): Record<string, string> {
     if (this.code !== "validation_error" || !Array.isArray(this.details)) return {};
     const out: Record<string, string> = {};
-    for (const d of this.details as { loc: (string | number)[]; msg: string }[]) {
-      out[String(d.loc[d.loc.length - 1])] = d.msg.replace(/^Value error, /, "");
+    for (const d of this.details as { loc: (string | number)[]; msg: string; type?: string }[]) {
+      out[String(d.loc[d.loc.length - 1])] = validationMessage(d.type, d.msg);
     }
     return out;
   }
@@ -92,7 +94,23 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
   return payload as T;
 }
 
+/** A file download that needs the Authorization header (so it cannot be a plain link). */
+async function requestBlob(path: string, query?: Query): Promise<Blob> {
+  const headers: Record<string, string> = {};
+  const token = tokenStore.get();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(buildUrl(path, query), { headers });
+  if (!res.ok) {
+    const payload = await res.json().catch(() => null);
+    const err = payload?.error ?? {};
+    if (res.status === 401 && token) onUnauthorized?.();
+    throw new ApiError(res.status, err.code ?? "http_error", err.message ?? `Request failed (${res.status})`, err.details, payload?.request_id ?? null);
+  }
+  return res.blob();
+}
+
 export const api = {
+  blob: (path: string, query?: Query) => requestBlob(path, query),
   get: <T>(path: string, query?: Query) => request<T>("GET", path, undefined, query),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body ?? {}),

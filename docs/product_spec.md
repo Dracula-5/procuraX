@@ -51,7 +51,7 @@ A request the caller cannot see returns **404, not 403**, so its existence is ne
 | Purchase order | 🟡 P6 | Approved request → PO; status flow includes manual sent/acknowledged, receipt, close and reasoned cancellation; external dispatch is not integrated |
 | Vendor confirmation | 🟡 P6 | Manual acknowledgement recorded by procurement; vendor portal not implemented |
 | Goods / service receipt | 🟡 P6 | Aggregate accepted/damaged quantity and evidence reference; no item-level receipt |
-| Invoice submission + OCR/extraction | 🟡 P6 / P11 | Manual line-level invoice entry (with tax rates and registration number) and a local Tesseract PDF/image extraction preview, benchmarked on synthetic renders. Source files are not persisted and OCR output is not auto-submitted. |
+| Invoice submission + OCR/extraction | 🟡 P6 / P11 | Manual line-level invoice entry (with tax rates and registration number) and a local Tesseract PDF/image extraction preview, benchmarked on synthetic renders. Source files are stored and attached to the invoice (immutable, SHA-256, optional virus scan); OCR output is not auto-submitted. |
 | 3-way match | 🟡 P7 | Per-line price, cumulative billable quantity, consumption tax per rate and registration number checks; finance exception adjudication |
 | Finance validation & payment approval | 🟡 P7 | Matched invoice can request payment; finance-manager role decides with self-approval protection. Approved payments export as a Zengin 総合振込 file for bank upload; ProcuraX never moves money |
 | Spend analytics | 🟡 P8 | Approved value by category, PO/invoice/payment state counts, and completed request decision-cycle mean/max; department/vendor views, 12-month trend, cycle median/P90, date/dimension filters, CSV export and current-FY cost-centre budget utilization implemented; savings opportunities and anomaly review remain |
@@ -98,8 +98,8 @@ Illegal transitions return `409 invalid_state_transition`.
 | Exception | How it is handled | Status |
 |---|---|---|
 | Rejected request | Reason required; remaining steps cancelled; requester can reopen and resubmit (new round) | ✅ |
-| Approval escalation | SLA due dates and overdue flags ✅. Automatic escalation job ⬜ P5 (needs the worker queue). | 🟡 |
-| Delegation | Approver delegates to a deputy for a period | ⬜ P5 |
+| Approval escalation | SLA due dates and overdue flags; an advisory-locked sweep reassigns overdue named steps to the next eligible manager (in-process interval or external scheduler) and notifies the new approver. | ✅ |
+| Delegation | A named approver hands one undecided step to a colleague with the same approver role (not the requester) and can revoke it before the decision; audited. Screen at *Approvals → Delegations*. Per step, not a date-range out-of-office rule. | ✅ |
 | Budget exceeded | BUD-002 routes to finance manager at submission; re-checked at final approval under lock | ✅ |
 | No budget | BUD-001 routes to finance manager | ✅ |
 | Vendor blocked / suspended | VEN-001 blocks the request | ✅ |
@@ -116,12 +116,12 @@ Illegal transitions return `409 invalid_state_transition`.
 | Module | Scope now | Status |
 |---|---|---|
 | A. Procurement request management | Create, draft, edit, submit, cancel, reopen; line items; cost centre; preferred vendor; needed-by; justification | ✅ (attachments ⬜ P6, object storage) |
-| B. Approval workflow | Dynamic chain, approve/reject with comments, SLA, audit trail, inbox | 🟡 (delegation plus schedulable audit-logged manager escalation delivered; external notifications remain) |
+| B. Approval workflow | Dynamic chain, approve/reject with comments, SLA, audit trail, inbox, delegation, escalation, notifications (in-app, e-mail, Slack/Teams; users choose channels, admins configure team webhooks) | ✅ |
 | C. Vendor management | Onboarding (pending review), profile, categories, contract status, risk, status changes with reasons, Japan invoice registration no. | ✅ (performance/spend history ⬜ P8) |
 | D. Quote management | Record vendor amount, delivery, quality, contract compliance; compare with transparent weighted baseline | 🟡 P6 |
 | E. Purchase orders | Issue from approved request with approved vendor; audited status transitions | 🟡 P6 |
 | F. Goods receipt | Aggregate quantity, damaged quantity, date, comments and evidence reference | 🟡 P6 |
-| G. Invoice management | Manual line metadata and duplicate invoice-number guard; optional local OCR preview requires Tesseract and does not persist files | 🟡 P6 / P11 |
+| G. Invoice management | Manual line metadata and duplicate invoice-number guard; stored invoice files (S3-compatible, immutable once attached, scan gate before payment); optional local OCR preview | 🟡 P6 / P11 (e-invoicing remains) |
 | H. 3-way matching | Deterministic PO-line price check, quantity against accepted-not-yet-invoiced, consumption tax with lawful per-rate rounding, qualified-invoice registration check digit and vendor-master match, duplicate block, audited finance exception decision | 🟡 P7; bank transfer is a Zengin file export, not executed by ProcuraX |
 | Budgets | Per cost centre per FY; utilisation derived live (committed = approved, pending = in approval) | ✅ |
 | Policy administration | Versioned publish with before/after audit; dry-run preview per request | ✅ |
@@ -192,7 +192,7 @@ the dataset version and git commit.
 | Security | Argon2id passwords, short-lived JWT, uniform login errors, hashed invite tokens, security headers, strict CORS, production config guards, log-extra redaction | 🟡 (rate limiting, refresh cookies, MFA, external security review remain) |
 | Observability | Structured JSON logs, request IDs, `/health` and `/ready` | 🟡 (metrics and tracing ⬜ P19) |
 | Performance | Health-only local smoke measured; no product capacity claim | 🟡 P17 authenticated API/database load remains |
-| Accessibility / UX | Keyboard-focusable controls, labelled inputs, responsive layout, light/dark themes | 🟡 (no formal audit yet) |
+| Accessibility / UX | Keyboard-focusable controls, labelled inputs, responsive layout, light/dark themes; English and Japanese UI with locale-aware dates, numbers and ¥ amounts, language saved per user | 🟡 (no formal accessibility audit; Japanese wording not reviewed by a native-speaking procurement user) |
 
 ## 8. Data honesty rules
 

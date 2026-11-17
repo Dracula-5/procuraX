@@ -58,12 +58,14 @@ flowchart TB
       PROC --> PE & SM
       Modules --> AUD
     end
-    API -->|asyncpg · runtime role procurax_app<br/>RLS enforced| PG[(PostgreSQL 16<br/>+ pgvector image)]
+    API -->|asyncpg · runtime role procurax_app<br/>RLS enforced| PG[(PostgreSQL 16<br/>pgvector image; extension not enabled)]
     Migr[Alembic · owner role] -.release step.-> PG
+    W[Notification worker<br/>python -m app.worker or in-process] -->|claims outbox rows · SKIP LOCKED| PG
+    W -->|SMTP · Slack / Teams webhooks · off by default| EXT[(Mail server · team chat)]
+    API -->|invoice files · write-once keys| OBJ[(S3-compatible storage<br/>local disk in dev)]
+    W -->|ClamAV scan · optional| AV[clamd]
     subgraph Planned[Planned]
-      Q[Redis + worker queue · P5/P6]
-      OBJ[Object storage · P6]
-      AIGW[AI gateway · P9+]
+      AIGW[AI gateway · Phase 8]
     end
     API -.-> Planned
 ```
@@ -162,8 +164,19 @@ attribution), `purchase_orders`, `purchase_order_items`, `goods_receipts` (linke
 (approval record only; no transfer integration), and tenant-scoped versioned
 `procurement_knowledge_documents`.
 
-Planned tables *(P6–P14)*: invoice line items, `spend_transactions`, `documents`, `ai_predictions`,
-`notifications`, `feedback`.
+Notification tables *(gap-closure Phase 2)*: `notification_outbox` (events written in the same
+transaction as the change), `notification_deliveries` (one row per external message, unique delivery
+key), `notifications` (in-app), `notification_preferences` and `notification_channels` (tenant Slack /
+Teams webhooks, URL encrypted). All five have forced RLS; the runtime role cannot delete from them
+except to remove a channel.
+
+Invoice files *(gap-closure Phase 3)*: `invoice_documents` holds the object key, SHA-256, size, MIME
+type, page count, uploader, retain-until date, scan status and the invoice link. A trigger makes a file's
+identity immutable, the link one-time, and linked rows undeletable (also for the owner role, except under
+an explicit transaction-local purge flag used by the fictional demo reset); the runtime role has no
+DELETE privilege.
+
+Planned tables: invoice line items, `spend_transactions`, `ai_predictions`, `feedback`.
 
 ## 7. AI architecture *(offline baselines delivered; full AI pipeline planned)*
 
@@ -181,24 +194,29 @@ No AI result is connected to automatic approval or payment.
   basis for acceptance and override metrics and for drift detection.
 - AI outputs enter the workflow only as **recommendations or signals**. The policy engine and
   match rules decide, and people approve (see product spec §5).
-- Retrieval uses pgvector in the same PostgreSQL, under the same RLS, so tenant-aware retrieval
-  is structural and not a filter someone could forget (ADR-002).
+- *(Planned, gap-closure Phase 8.)* Semantic retrieval will use pgvector in the same PostgreSQL,
+  under the same RLS, so tenant-aware retrieval is structural and not a filter someone could
+  forget (ADR-002). Today the database runs the `pgvector/pgvector:pg16` **image only**: no
+  migration creates the extension, no table has a vector column, and retrieval is BM25.
 - The analytics assistant will generate SQL only against **read-only, RLS-bound views**,
   validate it with a parser allow-list, and run it as a read-only role with a statement
   timeout.
 
-## 8. Integration architecture *(planned)*
+## 8. Integration architecture *(notifications built; the rest planned)*
 
 | Integration | Pattern | Notes |
 |---|---|---|
 | ERP (PO, vendor master, payments) | Outbound events + batch export (CSV/SFTP), then REST API | Platform works standalone if the ERP is down; outbox table for retries |
 | Identity provider | OIDC SSO | Replaces passwords for enterprise tenants |
-| E-mail | Transactional provider | Invitations, approval notifications |
-| Object storage | S3-compatible, pre-signed uploads | Attachments, invoices; malware and file-type scanning before processing |
+| E-mail | SMTP from the outbox worker (Mailpit locally); off unless `PROCURAX_EMAIL_ENABLED` | **Built:** approval, escalation, delegation, rejection, PO, invoice-mismatch and payment events in the recipient's language. Invitation e-mails are not sent yet |
+| Team chat | Slack / Microsoft Teams incoming webhooks per tenant; off unless `PROCURAX_WEBHOOKS_ENABLED` | **Built:** the tenant admin picks events; URL host allow-listed and encrypted at rest |
+| Object storage | S3-compatible behind `ObjectStorage` (RustFS locally and in CI, AWS S3 or Cloudflare R2 in production; local disk for development) | **Built for invoice files:** uploads through the API (type, magic-byte, size and page checks), write-once keys (`If-None-Match: *`), downloads after a permission check via 60-second SigV4 presigned URLs or streamed with a hash re-check; optional ClamAV scan by the worker |
 | Payment / accounting sandbox | Webhooks | Payment status back into the P2P record |
 
-Idempotency: external writes will carry an idempotency key stored with the outbox row.
-Consumers dedupe on it.
+Idempotency: every notification delivery has a deterministic key (event + channel + recipient) with a
+unique constraint, so replays insert nothing twice; the key is sent as the e-mail Message-ID and the
+webhook `Idempotency-Key` header so receivers can deduplicate. Delivery is at-least-once (ADR-013). ERP
+writes will follow the same outbox pattern.
 
 ## 9. Security architecture
 
@@ -213,6 +231,8 @@ Consumers dedupe on it.
 | Secrets | Env vars; startup refuses the default JWT secret in `prod`; `.env` ignored by git |
 | Headers | `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, COOP; strict CORS allow-list, no credentials |
 | Invitations | 256-bit random tokens, stored as SHA-256, single use, 72 h expiry, revocable |
+| Invoice files | Accepted only as PDF/PNG/JPEG/TIFF whose bytes match the extension, ≤ 18 MiB, PDFs 1–10 pages and unencrypted; stored under an application-generated tenant-prefixed key (never the uploaded name); SHA-256 recorded and re-checked on scan and on streamed download; infected or still-scanning files cannot be downloaded or block payment; immutable once stored (trigger) |
+| Outbound webhooks | Tenant-supplied URLs must be https on an allow-listed Slack/Microsoft host (no credentials, default port), checked on save and again before every post (SSRF); stored encrypted (Fernet, key derived from `PROCURAX_DATA_ENCRYPTION_KEY`, rotation supported); never returned by the API |
 | SQL injection | ORM / bound parameters everywhere. The only interpolated DDL identifier (the role name in the migration) is regex-validated. |
 | Rate limiting *(P18)* | Login and invitation endpoints first (Redis token bucket) |
 | AI-specific *(planned)* | Prompt-injection isolation for retrieved text, tenant-aware retrieval via RLS, tool allow-list, read-only SQL role, output validation |
@@ -244,8 +264,8 @@ departments, cost centres, audit logs, inbox, timelines and cross-tenant referen
   transaction-local.
 - Tenant-leading composite indexes keep per-tenant queries selective as total volume grows.
   Partitioning `audit_logs` and future `spend_transactions` by time is the next lever.
-- Heavy or bursty work (OCR, embeddings, batch anomaly scoring, reports) moves to workers off
-  the request path *(P5/P6)*.
+- Heavy or bursty work moves to workers off the request path. Notification delivery already does
+  (outbox + `python -m app.worker`, any number of instances); OCR, embeddings and batch scoring are next.
 
 ## 12. Reliability & failure handling
 
@@ -257,7 +277,12 @@ departments, cost centres, audit logs, inbox, timelines and cross-tenant referen
 | Unique violations (codes, names, budgets) | Caught at flush and returned as a clear 409 |
 | DB unavailable | `/ready` returns 503 so the load balancer drains; `/health` stays up for liveness |
 | Unhandled error | Logged with request ID; generic 500 envelope (no stack traces to clients) |
-| Migration failure | Runs as a separate release step before new instances start; migrations are reversible and round-trip tested |
+| Migration failure | Runs as a separate release step before new instances start; migrations are reversible and round-trip tested (CI also round-trips a populated database) |
+| Notification worker crashes mid-batch | Its transaction rolls back; the claimed rows become claimable again (`FOR UPDATE SKIP LOCKED`). A message the receiver accepted before the crash may be sent twice (at-least-once); the delivery key lets receivers deduplicate |
+| Mail server or webhook down | The delivery backs off exponentially (30 s doubling to 1 h, ±20 % jitter), then is dead-lettered after `PROCURAX_NOTIFICATION_MAX_ATTEMPTS`; an org admin sees dead letters and retries them. The business transaction is never affected |
+| Business transaction fails | Its outbox row rolls back with it, so no notification describes a change that did not happen |
+| Object storage unavailable at upload | The upload fails before any row is written (bytes first, metadata second), so no row points at a missing object; a failed commit can leave an orphaned object, never a dangling row |
+| ClamAV down | Files stay `pending` (which blocks payment) and are retried with backoff; nothing is marked clean without a scan |
 
 Note on the concurrency test: it drives two genuinely concurrent DB transactions. With the
 lock removed, it failed in 1 of 3 runs (the race is timing-dependent), so it detects the bug
@@ -293,9 +318,9 @@ are cited with their date. No numbers until then.
 
 | Question | Choice | Why |
 |---|---|---|
-| Why PostgreSQL? | PostgreSQL 16 | Relational integrity for a financial workflow (FKs, CHECKs, transactions, row locks); RLS for tenant isolation; JSONB for policy snapshots; pgvector for RAG in the same security boundary; mature managed offerings |
+| Why PostgreSQL? | PostgreSQL 16 | Relational integrity for a financial workflow (FKs, CHECKs, transactions, row locks); RLS for tenant isolation; JSONB for policy snapshots; pgvector available for RAG in the same security boundary (image only today; embeddings planned in Phase 8); mature managed offerings |
 | Why FastAPI? | FastAPI + Pydantic v2 + SQLAlchemy 2 async | Typed request/response contracts, generated OpenAPI, async I/O suits DB-bound work now and LLM calls later; the Python ecosystem matches the ML stack |
-| Why Redis / an event queue? | **Not yet.** SLA escalation runs as a schedulable DB command; queue-backed notifications and OCR remain future work. | Current timed work is bounded and idempotent. Add a durable queue when external notification delivery, OCR volume or model jobs need retries and dead-letter handling. |
+| Why Redis / an event queue? | **No Redis.** PostgreSQL is the queue: a transactional outbox claimed with `FOR UPDATE SKIP LOCKED` (ADR-013). | Exactly-once *enqueue* with the business change, retries and dead letters without another stateful service on free tiers. Revisit with measurements if queue volume or latency outgrows PostgreSQL. |
 | Why a deterministic policy engine? | Pure Python rules, versioned config | Compliance controls must be reproducible, testable and explainable to auditors; an LLM is none of those |
 | Why a ranking model for vendors *(planned)*? | Learning-to-rank vs a rule baseline | The task is ordering candidates by expected outcome from tabular history, which is what LTR is built for. An LLM adds cost and non-determinism without tabular signal. |
 | Why RAG? | BM25 over policy rules and tenant-versioned plain-text documents; hybrid retrieval + reranker planned | Policy answers need traceable source text. Ingestion and extractive citations exist; semantic embeddings and representative retrieval evaluation remain future work |
@@ -310,7 +335,9 @@ domain layer. *Consequences:* simple deploys and ACID workflows. Extraction cand
 
 **ADR-002 PostgreSQL as the single datastore, pgvector for vectors.** *Decision:* avoid a
 separate vector DB. *Consequences:* one backup and security model, and RLS covers embeddings.
-If vector scale outgrows it, revisit with measurements.
+If vector scale outgrows it, revisit with measurements. *Status:* decided, not yet exercised. The
+local, CI and stack databases use the pgvector image, but the extension is not created and no
+embeddings exist until Phase 8.
 
 **ADR-003 Async FastAPI + SQLAlchemy 2.** *Consequences:* high I/O concurrency. Lazy loading is
 disallowed in async, so loads are explicit (`selectin` or column queries), and timestamps are
@@ -348,3 +375,43 @@ Pool steps require the role. This prevents stuck workflows while keeping pools p
 **ADR-011 App-side timestamps.** `created_at`/`updated_at` are set in Python so no implicit
 refresh (I/O) is needed under asyncio. The audit log adds an identity `seq` because timestamps
 can tie within one transaction.
+
+**ADR-012 The API returns codes; the SPA owns the wording (English and Japanese).** *Context:* the
+UI must work in Japanese, while the API's messages, rule sentences and audit summaries are English
+and are also stored (policy snapshots, audit rows). *Decision:* keep the API language-neutral: stable
+`error.code`, plus `error.details.reason` (and `field`) on business-rule refusals the UI must explain.
+The SPA uses i18next with keys typed against the English messages, so a missing Japanese key fails the
+build. In Japanese, rule messages are rebuilt from each hit's structured `evidence`, and audit entries
+are described by their `action` code; English keeps the server's exact sentence. The user's choice is
+stored in `users.locale` (NULL = follow the browser) and Japanese loads as a separate chunk.
+*Consequences:* every new refusal that users see needs a reason code and two translations; a Vitest
+test fails if the UI's rule labels differ from the generated rule catalogue. Stored English text (audit
+summaries, old policy snapshots) is never rewritten.
+
+**ADR-013 PostgreSQL is the notification queue (transactional outbox, no Redis).** *Context:*
+notifications must never describe a change that rolled back, nor be lost for one that committed; the
+deployment runs on free tiers where every extra stateful service costs money or availability.
+*Decision:* events are rows in `notification_outbox`, inserted in the same transaction as the change. A
+worker (`python -m app.worker`, or an interval loop inside the API on hosts without background workers,
+or a cron `--once` while a free instance sleeps) claims due rows with `FOR UPDATE SKIP LOCKED`, fans them
+out to in-app rows and external deliveries with unique delivery keys, and sends with exponential backoff
+and a dead-letter state. *Alternatives:* Redis/RQ or a cloud queue (a second store to run and a
+dual-write problem without an outbox anyway); `LISTEN/NOTIFY` (not durable). *Consequences:*
+enqueue is atomic with the business change; delivery is at-least-once, so receivers get an idempotency
+key; throughput is bounded by PostgreSQL, which is ample at this scale. Outbox and delivery rows are kept
+(no retention job yet).
+
+**ADR-014 Invoice files: object storage behind an interface, immutable records, scan before payment.**
+*Context:* invoices are evidence (7-year retention under Japanese corporate tax law; the Electronic
+Bookkeeping Act expects tamper resistance) and untrusted input. *Decision:* files go to S3-compatible
+storage behind a two-method interface (local disk for development; production refuses local disk), with
+write-once keys. The database row records the SHA-256 and becomes immutable through a trigger, and the
+invoice link is one-time. ClamAV runs in the worker, not the request; an invoice with an infected,
+still-pending or (unless explicitly allowed) unscanned file cannot be requested for or approved for
+payment. *Alternatives:* files in PostgreSQL (`bytea`, simplest but bloats backups and the free tier's
+storage); presigned direct uploads (less API load, but validation would then happen after the bytes are
+stored). MinIO was the intended local/CI stand-in, but its community container images are no longer
+published; RustFS (Apache-2.0, S3- and MinIO-compatible) is used and was checked for conditional writes
+and presigned URLs. *Consequences:* evidence cannot be swapped silently; uploads pass through the API
+(18 MiB cap); no automatic deletion at the end of retention yet (bucket lifecycle or object lock is the
+production control).

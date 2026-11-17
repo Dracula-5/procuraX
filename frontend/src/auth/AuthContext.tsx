@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { applyLanguage, isLanguage } from "../i18n";
 import { api, setUnauthorizedHandler, tokenStore } from "../lib/api";
 import type { Me, TokenResponse } from "../lib/types";
 import { AuthContext, type AuthState } from "./AuthContextValue";
@@ -32,7 +33,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [qc],
   );
 
+  const updateMe = useCallback((next: Me) => qc.setQueryData(["me", token], next), [qc, token]);
+
   useEffect(() => setUnauthorizedHandler(signOut), [signOut]);
+
+  // A saved language preference follows the user to every device; without one the device's choice stays.
+  const savedLocale = token ? meQuery.data?.locale : null;
+  useEffect(() => {
+    if (isLanguage(savedLocale)) void applyLanguage(savedLocale);
+  }, [savedLocale]);
 
   const value = useMemo<AuthState>(() => {
     const me = token ? (meQuery.data ?? null) : null;
@@ -43,10 +52,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading: Boolean(token) && meQuery.isLoading,
       signIn,
       signOut,
+      updateMe,
       can: (p) => perms.has(p),
       hasRole: (r) => roles.has(r),
     };
-  }, [token, meQuery.data, meQuery.isLoading, signIn, signOut]);
+  }, [token, meQuery.data, meQuery.isLoading, signIn, signOut, updateMe]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

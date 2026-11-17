@@ -9,6 +9,7 @@ as in production; migrations and cleanup use the owner role.
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 os.environ["PROCURAX_ENV"] = "test"
@@ -22,6 +23,8 @@ os.environ.setdefault(
 os.environ["PROCURAX_DEMO_MODE"] = "true"
 # Many tests share one client address; the throttle itself is tested with a tightened limit.
 os.environ.setdefault("PROCURAX_LOGIN_MAX_FAILURES", "1000")
+# Invoice files written by tests go to a throwaway directory, never into the repository.
+os.environ.setdefault("PROCURAX_STORAGE_LOCAL_DIR", tempfile.mkdtemp(prefix="procurax-test-documents-"))
 
 import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402

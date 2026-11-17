@@ -10,11 +10,13 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import and_, func, or_, select
 
 from app.api.deps import DB, CurrentUser, requires
+from app.core.config import get_settings
 from app.core.db import utcnow
 from app.core.errors import BusinessRuleViolation, ConflictError, NotFoundError
 from app.core.principal import Principal
 from app.core.sequences import next_document_number
 from app.domain.catalog import SpendCategory
+from app.domain.documents import payment_block_reason
 from app.domain.matching import (
     PAYABLE_INVOICE_STATES,
     VOID_INVOICE_STATES,
@@ -24,12 +26,15 @@ from app.domain.matching import (
     billed_quantities,
     match_invoice,
 )
-from app.domain.rbac import Permission
+from app.domain.notifications import EventType
+from app.domain.rbac import Permission, Role
 from app.domain.sourcing import METHOD as SOURCING_METHOD
 from app.domain.sourcing import WEIGHTS as SOURCING_WEIGHTS
 from app.domain.sourcing import QuoteCandidate, RankedQuote, rank_quotes
 from app.domain.workflow.purchase_request import PRStatus
 from app.modules.audit import service as audit
+from app.modules.documents.models import InvoiceDocument
+from app.modules.notifications import outbox
 from app.modules.organization.models import Department
 from app.modules.procurement.models import PurchaseRequest
 from app.modules.procurement.records import (
@@ -806,6 +811,21 @@ async def submit_invoice(order_id: uuid.UUID, data: InvoiceIn, session: DB, prin
             "line_match_details": result.line_details,
         },
     )
+    if result.status not in PAYABLE_INVOICE_STATES:
+        outbox.emit(
+            session,
+            org_id=principal.org_id,
+            event_type=EventType.INVOICE_MISMATCH,
+            aggregate_type="invoice",
+            aggregate_id=invoice.id,
+            actor_user_id=principal.user_id,
+            recipient_roles=[Role.FINANCE_MANAGER.value],
+            link="/app/p2p",
+            invoice_number=invoice.invoice_number,
+            po_number=order.number,
+            match_status=result.status,
+            **outbox.money_facts(total, order.currency),
+        )
     await session.commit()
     return {
         "id": invoice.id,
@@ -876,6 +896,23 @@ async def transition_order(
         summary=f"{order.number}: {current} -> {target}",
         changes={"from": current, "to": target, "reason": data.reason},
     )
+    if target == "sent":
+        request = await session.get(PurchaseRequest, order.purchase_request_id)
+        if request is not None:
+            outbox.emit(
+                session,
+                org_id=principal.org_id,
+                event_type=EventType.PO_SENT,
+                aggregate_type="purchase_order",
+                aggregate_id=order.id,
+                actor_user_id=principal.user_id,
+                recipient_user_ids=[request.requester_id],
+                link=f"/app/requests/{request.id}",
+                po_number=order.number,
+                number=request.number,
+                title=request.title,
+                **outbox.money_facts(order.total, order.currency),
+            )
     await session.commit()
     return {"id": order.id, "number": order.number, "status": order.status}
 
@@ -955,6 +992,25 @@ async def decide_invoice_exception(
     }
 
 
+async def _check_invoice_files(session, org_id: uuid.UUID, invoice_id: uuid.UUID) -> None:  # noqa: ANN001
+    """Attached files must be scanned and clean (or explicitly allowed unscanned) before payment."""
+    statuses = list(
+        await session.scalars(
+            select(InvoiceDocument.scan_status).where(
+                InvoiceDocument.org_id == org_id, InvoiceDocument.invoice_id == invoice_id
+            )
+        )
+    )
+    reason = payment_block_reason(statuses, allow_unscanned=get_settings().allow_unscanned_documents)
+    if reason is not None:
+        messages = {
+            "document_infected": "An attached invoice file was flagged by the virus scanner",
+            "document_scan_pending": "An attached invoice file is still waiting for its virus scan",
+            "document_not_scanned": "An attached invoice file has not been virus-scanned",
+        }
+        raise BusinessRuleViolation(messages[reason], details={"reason": reason})
+
+
 @router.post("/invoices/{invoice_id}/payment-requests", status_code=status.HTTP_201_CREATED)
 async def request_payment(invoice_id: uuid.UUID, session: DB, principal: CurrentUser) -> dict:
     principal.require(Permission.PR_READ_ALL)
@@ -971,6 +1027,7 @@ async def request_payment(invoice_id: uuid.UUID, session: DB, principal: Current
         select(Payment.id).where(Payment.org_id == principal.org_id, Payment.invoice_id == invoice.id)
     ):
         raise ConflictError("A payment request already exists for this invoice")
+    await _check_invoice_files(session, principal.org_id, invoice.id)
     payment = Payment(
         org_id=principal.org_id,
         invoice_id=invoice.id,
@@ -989,6 +1046,18 @@ async def request_payment(invoice_id: uuid.UUID, session: DB, principal: Current
         entity_id=invoice.id,
         summary=f"Payment approval requested for invoice {invoice.invoice_number}",
         changes={"amount": invoice.total, "currency": invoice.currency},
+    )
+    outbox.emit(
+        session,
+        org_id=principal.org_id,
+        event_type=EventType.PAYMENT_AWAITING_APPROVAL,
+        aggregate_type="payment",
+        aggregate_id=payment.id,
+        actor_user_id=principal.user_id,
+        recipient_roles=[Role.FINANCE_MANAGER.value],
+        link="/app/p2p",
+        invoice_number=invoice.invoice_number,
+        **outbox.money_facts(invoice.total, invoice.currency),
     )
     await session.commit()
     return {
@@ -1046,6 +1115,8 @@ async def decide_payment(
         raise BusinessRuleViolation("The payment requester cannot approve their own payment")
     if data.decision not in {"approve", "reject"}:
         raise BusinessRuleViolation("Decision must be approve or reject")
+    if data.decision == "approve":  # a file attached after the request must also be clean
+        await _check_invoice_files(session, principal.org_id, payment.invoice_id)
     payment.status = "approved" if data.decision == "approve" else "rejected"
     payment.decided_by_id = principal.user_id
     payment.decided_at = utcnow()

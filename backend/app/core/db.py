@@ -42,6 +42,14 @@ class UUIDPkMixin:
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
 
 
+@event.listens_for(UUIDPkMixin, "init", propagate=True)
+def _assign_id_on_construction(target: object, args: tuple, kwargs: dict) -> None:
+    # The column default only fires at flush, so `row.id` used to be None until then and records
+    # written in the same transaction (audit entries, outbox events) captured a NULL id. Assigning
+    # it on construction makes the id known immediately, as the design intends (ADR-011 spirit).
+    kwargs.setdefault("id", uuid.uuid4())
+
+
 class TimestampMixin:
     # Python-side defaults: values are known without a round-trip, which matters under
     # asyncio where an implicit refresh of an expired attribute is not allowed.

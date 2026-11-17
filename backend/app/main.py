@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 from app.api.error_handlers import register_exception_handlers
 from app.api.router import api_router
+from app.background import background_loop
 from app.core.config import get_settings
 from app.core.db import dispose_engine, get_engine
 from app.core.logging import configure_logging
@@ -30,14 +31,18 @@ Purchase-to-pay workflow with deterministic policy enforcement, multi-tenant iso
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
-    sweep: asyncio.Task[None] | None = None
-    if settings.sla_escalation_interval_seconds > 0 and settings.env != "test":
-        sweep = asyncio.create_task(sla_sweep_loop(settings.sla_escalation_interval_seconds))
+    tasks: list[asyncio.Task[None]] = []
+    if settings.env != "test":
+        if settings.sla_escalation_interval_seconds > 0:
+            tasks.append(asyncio.create_task(sla_sweep_loop(settings.sla_escalation_interval_seconds)))
+        # Free hosting without a separate worker process: run the background cycle in the API instead.
+        if settings.notification_worker_interval_seconds > 0:
+            tasks.append(asyncio.create_task(background_loop(settings.notification_worker_interval_seconds)))
     yield
-    if sweep is not None:
-        sweep.cancel()
+    for task in tasks:
+        task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await sweep
+            await task
     await dispose_engine()
 
 

@@ -4,11 +4,26 @@
 # exact *.onrender.com hostnames Render assigns.
 
 services:
+  # A dedicated worker is a paid Render service type, so it is not enabled here. To use one, uncomment:
+  # - type: worker
+  #   name: procurax-worker
+  #   runtime: docker
+  #   plan: starter
+  #   region: oregon
+  #   dockerfilePath: ./backend/Dockerfile
+  #   dockerContext: ./backend
+  #   dockerCommand: python -m app.worker
+  #   envVars: same database and PROCURAX_* values as procurax-api, and set
+  #            PROCURAX_NOTIFICATION_WORKER_INTERVAL_SECONDS=0 on the web service.
   - type: web
     name: procurax-api
     runtime: docker
     plan: free
-    region: singapore  # closest Render region to Japan; create the Neon database in Singapore too
+    # The live service (procurax-mod8.onrender.com) was created in Oregon; see
+    # reports/live_deployment_smoke.json. Render fixes a service's region at creation, so this
+    # value describes that service. Singapore is closer to Japan: to move, create a new service
+    # with `region: singapore` and a Neon database in AWS Singapore (docs/deployment.md §2).
+    region: oregon
     # No rootDir: Render's docs disagree on whether paths are then relative to it, so every path
     # below is written from the repository root, which is unambiguous.
     dockerfilePath: ./backend/Dockerfile
@@ -31,6 +46,14 @@ services:
         sync: false
       - key: PROCURAX_SLA_ESCALATION_INTERVAL_SECONDS
         value: "900"
+      # Notification outbox worker inside the web service (free plan has no background workers).
+      # While the service sleeps, demo-maintenance.yml runs one worker batch per hour instead.
+      - key: PROCURAX_NOTIFICATION_WORKER_INTERVAL_SECONDS
+        value: "30"
+      # E-mail and Slack/Teams stay off until real SMTP credentials / webhooks are provided:
+      # set PROCURAX_EMAIL_ENABLED, PROCURAX_SMTP_* and PROCURAX_WEBHOOKS_ENABLED in the dashboard.
+      - key: PROCURAX_DATA_ENCRYPTION_KEY  # encrypts tenant webhook URLs; any 32+ character secret
+        generateValue: true
       - key: PROCURAX_OCR_LANGUAGES
         value: eng+jpn
       - key: PROCURAX_DB_POOL_SIZE  # Neon free allows a limited number of connections

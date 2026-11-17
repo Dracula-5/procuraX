@@ -1,7 +1,8 @@
 import clsx from "clsx";
 import { Loader2 } from "lucide-react";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
-import { ApiError } from "../lib/api";
+import { useTranslation } from "react-i18next";
+import { describeError } from "../lib/errors";
 
 type Variant = "primary" | "secondary" | "danger" | "ghost";
 
@@ -96,10 +97,11 @@ export const Textarea = ({ className, ...rest }: TextareaHTMLAttributes<HTMLText
   <textarea {...rest} className={clsx(control, "min-h-24 py-2", className)} />
 );
 
-export function Spinner({ label = "Loading" }: { label?: string }) {
+export function Spinner({ label }: { label?: string }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted" role="status">
-      <Loader2 className="size-4 animate-spin" aria-hidden /> {label}…
+      <Loader2 className="size-4 animate-spin" aria-hidden /> {label ?? t("common.loading")}…
     </div>
   );
 }
@@ -114,13 +116,14 @@ export function EmptyState({ title, children }: { title: string; children?: Reac
 }
 
 export function ErrorNotice({ error }: { error: unknown }) {
+  const { t } = useTranslation();
   if (!error) return null;
-  const message = error instanceof Error ? error.message : "Something went wrong";
-  const requestId = error instanceof ApiError ? error.requestId : null;
+  const { message, detail, requestId } = describeError(error);
   return (
     <div role="alert" className="rounded-md border border-danger/30 bg-danger-soft px-3 py-2 text-sm text-danger">
       {message}
-      {requestId && <span className="ml-2 font-mono text-xs opacity-70">ref {requestId.slice(0, 12)}</span>}
+      {requestId && <span className="ml-2 font-mono text-xs opacity-70">{t("common.ref", { id: requestId.slice(0, 12) })}</span>}
+      {detail && detail !== message && <span className="mt-0.5 block text-xs opacity-70">{detail}</span>}
     </div>
   );
 }
