@@ -203,9 +203,17 @@ def test_empty_request_and_missing_cost_centre_are_blocked() -> None:
     assert {h.rule_id for h in result.blocking_hits} == {"VAL-001", "VAL-002"}
 
 
-def test_currency_mismatch_is_blocked() -> None:
-    result = run(facts(currency="USD"))
+def test_foreign_currency_without_a_rate_is_blocked() -> None:
+    result = run(facts(currency="USD", has_exchange_rate=False))
     assert "VAL-004" in {h.rule_id for h in result.blocking_hits}
+
+
+def test_foreign_currency_with_a_rate_is_judged_on_its_base_amount() -> None:
+    # 1,000 USD converted at submission to ¥150,250: a manager approval, no VAL-004.
+    result = run(facts("150250", currency="USD", has_exchange_rate=True))
+    assert "VAL-004" not in rule_ids(result)
+    assert result.outcome == "requires_approval"
+    assert roles(result) == ["manager"]
 
 
 def test_emergency_needs_justification() -> None:

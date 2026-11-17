@@ -33,3 +33,6 @@ Thumbs.db
 
 # Downloaded evaluation sources (re-fetched by the benchmark scripts)
 .cache/
+
+# Local invoice-file storage (PROCURAX_STORAGE_BACKEND=local)
+backend/var/

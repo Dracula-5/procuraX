@@ -7,7 +7,9 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
+    PrimaryKeyConstraint,
     String,
     Text,
     Uuid,
@@ -16,6 +18,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, SoftDeleteMixin, TenantMixin, TimestampMixin, UUIDPkMixin, utcnow
+from app.domain.catalog import Locale
 
 
 class Organization(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, Base):
@@ -34,11 +37,16 @@ class Organization(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, Base):
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
     # Payer details for Zengin transfer files (consignor code, name and debit account).
     payment_settings: Mapped[dict | None] = mapped_column(JSONB)
+    # Control accounts for the ERP journal export (payable, input tax, bank, default expense).
+    ledger_settings: Mapped[dict | None] = mapped_column(JSONB)
 
 
 class User(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):
     __tablename__ = "users"
-    __table_args__ = (CheckConstraint("email = lower(email)", name="email_lowercase"),)
+    __table_args__ = (
+        CheckConstraint("email = lower(email)", name="email_lowercase"),
+        CheckConstraint(f"locale IN ({', '.join(repr(v.value) for v in Locale)})", name="valid_locale"),
+    )
 
     email: Mapped[str] = mapped_column(String(320), unique=True)  # stored lower-cased
     full_name: Mapped[str] = mapped_column(String(200))
@@ -49,6 +57,14 @@ class User(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):
     vendor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("vendors.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # UI language chosen by the user; NULL means "not chosen" (the browser language applies).
+    locale: Mapped[str | None] = mapped_column(String(5))
+    # TOTP (RFC 6238). Secrets are encrypted with the data key; recovery codes are stored as HMACs.
+    mfa_secret_encrypted: Mapped[str | None] = mapped_column(Text)
+    mfa_pending_secret_encrypted: Mapped[str | None] = mapped_column(Text)
+    mfa_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    mfa_last_step: Mapped[int | None] = mapped_column(BigInteger)  # last accepted time step (no replay)
+    mfa_recovery_hashes: Mapped[list[str] | None] = mapped_column(JSONB)
 
 
 class RoleDef(Base):
@@ -113,3 +129,36 @@ class OrgSequence(Base):
     )
     name: Mapped[str] = mapped_column(String(40), primary_key=True)
     next_value: Mapped[int] = mapped_column(BigInteger, default=1)
+
+
+class AuthSession(UUIDPkMixin, TenantMixin, Base):
+    """One refresh token of a sign-in session family (ADR-019). Only the token's SHA-256 is stored."""
+
+    __tablename__ = "auth_sessions"
+    __table_args__ = (Index("ix_auth_sessions_user_active", "org_id", "user_id", "revoked_at"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    family_id: Mapped[uuid.UUID] = mapped_column(Uuid, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    # password, password_mfa, recovery_code, oidc, register, invitation, demo
+    method: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    family_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    replaced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_reason: Mapped[str | None] = mapped_column(String(40))
+    user_agent: Mapped[str | None] = mapped_column(String(200))
+
+
+class AuthThrottle(Base):
+    """Failed-attempt counters shared by every API process. Not tenant data: keys are SHA-256 hashes of
+    "purpose:address:account" strings, so no e-mail or client address is stored in clear."""
+
+    __tablename__ = "auth_throttle"
+    __table_args__ = (PrimaryKeyConstraint("key_hash", "bucket"),)
+
+    key_hash: Mapped[str] = mapped_column(String(64))
+    bucket: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    failures: Mapped[int] = mapped_column(Integer, default=0)

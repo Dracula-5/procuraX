@@ -1,32 +1,41 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Siren } from "lucide-react";
+import { AlertTriangle, Siren, UserRoundCog } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Badge, EmptyState, ErrorNotice, PageHeader, Spinner, Table, Td, Th } from "../components/ui";
 import { api } from "../lib/api";
-import { CATEGORIES, label, money, relative, ROLE_LABELS } from "../lib/format";
+import { money, relative } from "../lib/format";
+import { useLabels } from "../lib/labels";
 import type { InboxItem } from "../lib/types";
 
 export function Inbox() {
+  const { t } = useTranslation();
+  const labels = useLabels();
   const inbox = useQuery({ queryKey: ["inbox"], queryFn: () => api.get<InboxItem[]>("/approvals/inbox"), refetchInterval: 30_000 });
   return (
     <>
       <PageHeader
-        title="Approval inbox"
-        subtitle="Steps waiting on you — assigned to you by the org structure, or to a team you belong to. Most urgent first."
+        title={t("inbox.title")}
+        subtitle={t("inbox.subtitle")}
+        actions={
+          <Link to="/app/approvals/delegations" className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-surface-2">
+            <UserRoundCog className="size-4" /> {t("inbox.delegations")}
+          </Link>
+        }
       />
       <ErrorNotice error={inbox.error} />
       {inbox.isLoading ? (
         <Spinner />
       ) : !inbox.data?.length ? (
-        <EmptyState title="Nothing to approve">New steps appear here as soon as policy routes a request to you.</EmptyState>
+        <EmptyState title={t("inbox.emptyTitle")}>{t("inbox.emptyBody")}</EmptyState>
       ) : (
         <Table>
           <thead>
             <tr>
-              <Th>Request</Th>
-              <Th>Why you</Th>
-              <Th className="text-right">Amount</Th>
-              <Th>Due</Th>
+              <Th>{t("requests.col.request")}</Th>
+              <Th>{t("inbox.whyYou")}</Th>
+              <Th className="text-right">{t("common.amount")}</Th>
+              <Th>{t("common.due")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -37,23 +46,23 @@ export function Inbox() {
                     {i.title}
                   </Link>
                   <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
-                    {i.number} · {i.requester_name} · {i.department_name} · {label(CATEGORIES, i.category)}
+                    {i.number} · {i.requester_name} · {i.department_name} · {labels.category(i.category)}
                     {i.is_emergency && (
                       <span className="inline-flex items-center gap-0.5 text-warn">
-                        <Siren className="size-3" /> emergency
+                        <Siren className="size-3" /> {t("requests.emergency")}
                       </span>
                     )}
                   </div>
                 </Td>
                 <Td>
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge tone="primary">{label(ROLE_LABELS, i.approver_role)}</Badge>
-                    <Badge tone={i.assigned_to_me ? "info" : "neutral"}>{i.assigned_to_me ? "assigned to you" : "team queue"}</Badge>
+                    <Badge tone="primary">{labels.role(i.approver_role)}</Badge>
+                    <Badge tone={i.assigned_to_me ? "info" : "neutral"}>{i.assigned_to_me ? t("inbox.assignedToYou") : t("inbox.teamQueue")}</Badge>
                   </div>
                   <ul className="mt-1 space-y-0.5 text-xs text-muted">
                     {i.reasons.map((r, idx) => (
                       <li key={idx}>
-                        <span className="font-mono">{i.rule_ids[idx]}</span> {r}
+                        <span className="font-mono">{i.rule_ids[idx]}</span> {labels.stepReason(i.rule_ids[idx], r)}
                       </li>
                     ))}
                   </ul>
@@ -61,7 +70,7 @@ export function Inbox() {
                 <Td className="tabular text-right font-medium">{money(i.estimated_total, i.currency)}</Td>
                 <Td className="whitespace-nowrap">
                   <span className={i.is_overdue ? "inline-flex items-center gap-1 text-warn" : "text-muted"}>
-                    {i.is_overdue && <AlertTriangle className="size-4" />}
+                    {i.is_overdue && <AlertTriangle className="size-4" aria-label={t("common.pastSla")} />}
                     {relative(i.due_at)}
                   </span>
                 </Td>
@@ -73,4 +82,3 @@ export function Inbox() {
     </>
   );
 }
-

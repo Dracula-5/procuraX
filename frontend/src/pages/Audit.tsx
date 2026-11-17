@@ -1,15 +1,19 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { Badge, EmptyState, ErrorNotice, Input, PageHeader, Select, Spinner, Table, Td, Th } from "../components/ui";
 import { api } from "../lib/api";
 import { dateTime } from "../lib/format";
+import { useLabels } from "../lib/labels";
 import type { AuditEntry, Page } from "../lib/types";
 
 const ENTITY_TYPES = ["purchase_request", "vendor", "budget", "user", "invitation", "approval_policy", "department", "cost_center", "organization"];
 const PAGE = 50;
 
 export function Audit() {
+  const { t } = useTranslation();
+  const labels = useLabels();
   const [entity, setEntity] = useState("");
   const [action, setAction] = useState("");
   const [offset, setOffset] = useState(0);
@@ -20,52 +24,47 @@ export function Audit() {
   });
   return (
     <>
-      <PageHeader
-        title="Audit trail"
-        subtitle="Append-only: the application's database role can insert and read entries, never change or delete them."
-      />
+      <PageHeader title={t("audit.title")} subtitle={t("audit.subtitle")} />
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <Select value={entity} onChange={(e) => (setEntity(e.target.value), setOffset(0))} aria-label="Entity type">
-          <option value="">All entities</option>
-          {ENTITY_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t.replace("_", " ")}
+        <Select value={entity} onChange={(e) => (setEntity(e.target.value), setOffset(0))} aria-label={t("audit.entityType")}>
+          <option value="">{t("audit.allEntities")}</option>
+          {ENTITY_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {labels.entity(type)}
             </option>
           ))}
         </Select>
-        <Input placeholder="Action prefix, e.g. approval." value={action} onChange={(e) => (setAction(e.target.value), setOffset(0))} aria-label="Action" />
+        <Input placeholder={t("audit.actionPlaceholder")} value={action} onChange={(e) => (setAction(e.target.value), setOffset(0))} aria-label={t("audit.action")} />
       </div>
       <ErrorNotice error={logs.error} />
       {logs.isLoading ? (
         <Spinner />
       ) : !logs.data?.items.length ? (
-        <EmptyState title="No audit entries match" />
+        <EmptyState title={t("audit.empty")} />
       ) : (
         <>
           <Table>
             <thead>
               <tr>
-                <Th>When</Th>
-                <Th>Actor</Th>
-                <Th>Event</Th>
-                <Th>Request ID</Th>
+                <Th>{t("audit.when")}</Th>
+                <Th>{t("audit.actor")}</Th>
+                <Th>{t("audit.event")}</Th>
+                <Th>{t("audit.requestId")}</Th>
               </tr>
             </thead>
             <tbody>
               {logs.data.items.map((e) => (
                 <tr key={e.id}>
                   <Td className="whitespace-nowrap text-muted">{dateTime(e.created_at)}</Td>
-                  <Td>
-                    {e.actor_type === "user" ? e.actor_email : <Badge tone="primary">{e.actor_type.replace("_", " ")}</Badge>}
-                  </Td>
+                  <Td>{e.actor_type === "user" ? e.actor_email : <Badge tone="primary">{labels.actor(e.actor_type)}</Badge>}</Td>
                   <Td>
                     <p>
                       {e.entity_type === "purchase_request" && e.entity_id ? (
                         <Link to={`/app/requests/${e.entity_id}`} className="hover:text-primary">
-                          {e.summary}
+                          {labels.auditSummary(e.action, e.summary)}
                         </Link>
                       ) : (
-                        e.summary
+                        labels.auditSummary(e.action, e.summary)
                       )}
                     </p>
                     <p className="font-mono text-xs text-muted">{e.action}</p>
@@ -76,15 +75,13 @@ export function Audit() {
             </tbody>
           </Table>
           <div className="mt-3 flex items-center justify-between text-sm text-muted">
-            <span>
-              {offset + 1}–{Math.min(offset + PAGE, logs.data.total)} of {logs.data.total}
-            </span>
+            <span>{t("common.range", { from: offset + 1, to: Math.min(offset + PAGE, logs.data.total), total: logs.data.total })}</span>
             <span className="flex gap-2">
               <button className="rounded-md px-2 py-1 hover:bg-surface-2 disabled:opacity-40" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - PAGE))}>
-                Previous
+                {t("common.previous")}
               </button>
               <button className="rounded-md px-2 py-1 hover:bg-surface-2 disabled:opacity-40" disabled={offset + PAGE >= logs.data.total} onClick={() => setOffset((o) => o + PAGE)}>
-                Next
+                {t("common.next")}
               </button>
             </span>
           </div>
@@ -93,4 +90,3 @@ export function Audit() {
     </>
   );
 }
-

@@ -1,16 +1,21 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Landmark, Plus } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { ContractBadge, RiskBadge, VendorStatusBadge } from "../components/badges";
 import { Button, Card, EmptyState, ErrorNotice, Field, Input, PageHeader, Select, Spinner, Table, Td, Th } from "../components/ui";
 import { api, ApiError } from "../lib/api";
-import { CATEGORIES, date, label } from "../lib/format";
+import { date } from "../lib/format";
+import { CATEGORY_KEYS, useLabels } from "../lib/labels";
 import type { Page, Vendor } from "../lib/types";
 
 const STATUSES = ["approved", "pending_review", "suspended", "blocked"];
 
 export function Vendors() {
+  const { t } = useTranslation();
+  const labels = useLabels();
   const { can } = useAuth();
   const qc = useQueryClient();
   const [filters, setFilters] = useState({ q: "", category: "", status: "" });
@@ -30,7 +35,7 @@ export function Vendors() {
   const onStatus = (v: Vendor, status: string) => {
     let reason: string | undefined;
     if (status === "blocked" || status === "suspended") {
-      reason = window.prompt(`Reason for marking ${v.name} as ${status}?`) ?? undefined;
+      reason = window.prompt(t("vendors.reasonPrompt", { name: v.name, status: labels.vendorStatus(status) })) ?? undefined;
       if (!reason) return;
     }
     changeStatus.mutate({ id: v.id, status, reason });
@@ -39,32 +44,32 @@ export function Vendors() {
   return (
     <>
       <PageHeader
-        title="Vendors"
-        subtitle="Vendor master. New vendors start in onboarding review; approval is a separate, permissioned action."
+        title={t("vendors.title")}
+        subtitle={t("vendors.subtitle")}
         actions={
           can("vendor:manage") && (
             <Button onClick={() => setCreating((c) => !c)}>
-              <Plus className="size-4" /> Onboard vendor
+              <Plus className="size-4" /> {t("vendors.onboard")}
             </Button>
           )
         }
       />
       {creating && <VendorForm onDone={() => setCreating(false)} />}
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <Input placeholder="Search name" value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} aria-label="Search" />
-        <Select value={filters.category} onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))} aria-label="Category">
-          <option value="">All categories</option>
-          {Object.entries(CATEGORIES).map(([k, v]) => (
+        <Input placeholder={t("vendors.searchPlaceholder")} value={filters.q} onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))} aria-label={t("common.search")} />
+        <Select value={filters.category} onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))} aria-label={t("common.category")}>
+          <option value="">{t("requests.allCategories")}</option>
+          {CATEGORY_KEYS.map((k) => (
             <option key={k} value={k}>
-              {v}
+              {labels.category(k)}
             </option>
           ))}
         </Select>
-        <Select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} aria-label="Status">
-          <option value="">All statuses</option>
+        <Select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))} aria-label={t("common.status")}>
+          <option value="">{t("requests.allStatuses")}</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s.replace("_", " ")}
+              {labels.vendorStatus(s)}
             </option>
           ))}
         </Select>
@@ -73,16 +78,16 @@ export function Vendors() {
       {vendors.isLoading ? (
         <Spinner />
       ) : !vendors.data?.items.length ? (
-        <EmptyState title="No vendors found" />
+        <EmptyState title={t("vendors.empty")} />
       ) : (
         <Table>
           <thead>
             <tr>
-              <Th>Vendor</Th>
-              <Th>Categories</Th>
-              <Th>Status</Th>
-              <Th>Onboarded</Th>
-              {can("vendor:approve") && <Th>Change status</Th>}
+              <Th>{t("vendors.col.vendor")}</Th>
+              <Th>{t("vendors.col.categories")}</Th>
+              <Th>{t("common.status")}</Th>
+              <Th>{t("vendors.col.onboarded")}</Th>
+              {can("vendor:approve") && <Th>{t("vendors.col.changeStatus")}</Th>}
             </tr>
           </thead>
           <tbody>
@@ -91,10 +96,15 @@ export function Vendors() {
                 <Td>
                   <p className="font-medium">{v.name}</p>
                   <p className="text-xs text-muted">
-                    {v.invoice_registration_number ?? "No invoice registration no."} · {v.payment_terms_days}-day terms
+                    {v.invoice_registration_number ?? t("vendors.noRegistration")} · {t("vendors.terms", { days: v.payment_terms_days })}
                   </p>
+                  {can("vendor:manage") && (
+                    <Link to={`/app/vendors/${v.id}/bank-account`} className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                      <Landmark className="size-3" /> {t("vendors.bankAccount")}
+                    </Link>
+                  )}
                 </Td>
-                <Td className="text-xs">{v.categories.map((c) => label(CATEGORIES, c)).join(", ")}</Td>
+                <Td className="text-xs">{v.categories.map((c) => labels.category(c)).join(t("common.listSeparator"))}</Td>
                 <Td>
                   <div className="flex flex-wrap gap-1">
                     <VendorStatusBadge status={v.status} />
@@ -109,12 +119,12 @@ export function Vendors() {
                       className="h-8 w-36"
                       value=""
                       onChange={(e) => e.target.value && onStatus(v, e.target.value)}
-                      aria-label={`Change status of ${v.name}`}
+                      aria-label={t("vendors.changeStatusOf", { name: v.name })}
                     >
-                      <option value="">Set…</option>
+                      <option value="">{t("vendors.set")}</option>
                       {STATUSES.filter((s) => s !== v.status).map((s) => (
                         <option key={s} value={s}>
-                          {s.replace("_", " ")}
+                          {labels.vendorStatus(s)}
                         </option>
                       ))}
                     </Select>
@@ -130,6 +140,8 @@ export function Vendors() {
 }
 
 function VendorForm({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation();
+  const labels = useLabels();
   const qc = useQueryClient();
   const [form, setForm] = useState({
     name: "",
@@ -161,42 +173,46 @@ function VendorForm({ onDone }: { onDone: () => void }) {
     setForm((f) => ({ ...f, categories: f.categories.includes(c) ? f.categories.filter((x) => x !== c) : [...f.categories, c] }));
 
   return (
-    <Card title="Onboard a vendor" className="mb-6">
+    <Card title={t("vendors.form.title")} className="mb-6">
       <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name" error={errors.name}>
+        <Field label={t("vendors.form.name")} error={errors.name}>
           <Input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         </Field>
-        <Field label="Invoice registration number" hint="Japan Qualified Invoice System: T + 13 digits" error={errors.invoice_registration_number}>
+        <Field label={t("vendors.form.registration")} hint={t("vendors.form.registrationHint")} error={errors.invoice_registration_number}>
           <Input value={form.invoice_registration_number} placeholder="T1234567890123" onChange={(e) => setForm((f) => ({ ...f, invoice_registration_number: e.target.value }))} />
         </Field>
-        <Field label="Risk level">
+        <Field label={t("vendors.form.risk")}>
           <Select value={form.risk_level} onChange={(e) => setForm((f) => ({ ...f, risk_level: e.target.value }))}>
             {["unknown", "low", "medium", "high"].map((r) => (
-              <option key={r}>{r}</option>
+              <option key={r} value={r}>
+                {labels.risk(r)}
+              </option>
             ))}
           </Select>
         </Field>
-        <Field label="Contract">
+        <Field label={t("vendors.form.contract")}>
           <Select value={form.contract_status} onChange={(e) => setForm((f) => ({ ...f, contract_status: e.target.value }))}>
             {["none", "active", "expired"].map((r) => (
-              <option key={r}>{r}</option>
+              <option key={r} value={r}>
+                {labels.contract(r)}
+              </option>
             ))}
           </Select>
         </Field>
-        <Field label="Contact e-mail" error={errors.contact_email}>
+        <Field label={t("vendors.form.email")} error={errors.contact_email}>
           <Input type="email" value={form.contact_email} onChange={(e) => setForm((f) => ({ ...f, contact_email: e.target.value }))} />
         </Field>
-        <Field label="Payment terms (days)">
+        <Field label={t("vendors.form.terms")}>
           <Input type="number" min={0} max={365} value={form.payment_terms_days} onChange={(e) => setForm((f) => ({ ...f, payment_terms_days: Number(e.target.value) }))} />
         </Field>
         <fieldset className="sm:col-span-2">
-          <legend className="text-sm font-medium">Categories supplied</legend>
+          <legend className="text-sm font-medium">{t("vendors.form.categories")}</legend>
           {errors.categories && <p className="text-xs text-danger">{errors.categories}</p>}
           <div className="mt-2 flex flex-wrap gap-2">
-            {Object.entries(CATEGORIES).map(([k, v]) => (
+            {CATEGORY_KEYS.map((k) => (
               <label key={k} className="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-sm">
                 <input type="checkbox" checked={form.categories.includes(k)} onChange={() => toggle(k)} className="accent-[var(--primary)]" />
-                {v}
+                {labels.category(k)}
               </label>
             ))}
           </div>
@@ -205,10 +221,10 @@ function VendorForm({ onDone }: { onDone: () => void }) {
           {!Object.keys(errors).length && <ErrorNotice error={create.error} />}
           <div className="mt-2 flex gap-2">
             <Button type="submit" loading={create.isPending} disabled={!form.categories.length}>
-              Create (pending review)
+              {t("vendors.form.create")}
             </Button>
             <Button type="button" variant="ghost" onClick={onDone}>
-              Cancel
+              {t("common.cancel")}
             </Button>
           </div>
         </div>
@@ -216,4 +232,3 @@ function VendorForm({ onDone }: { onDone: () => void }) {
     </Card>
   );
 }
-

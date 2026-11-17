@@ -1,0 +1,32 @@
+{
+  "started_at": "2026-11-13T11:37:30+00:00",
+  "source_database": "procurax_test",
+  "scratch_database": "procurax_test_restore_drill",
+  "dump_bytes": 200727,
+  "dump_sha256": "85c6e04d647a1d477282913e712a59618da803a1f0ace3b9f3db8194c81c883e",
+  "alembic_revision": "0022",
+  "tables": 39,
+  "rows": 299,
+  "tables_with_different_counts": [],
+  "tenant_tables": 32,
+  "tenant_tables_without_forced_rls_or_policy": [],
+  "runtime_role_rows_without_tenant_context": 0,
+  "runtime_role_rows_with_one_tenant": 12,
+  "expected_rows_for_that_tenant": 12,
+  "audit_log_update_refused_for_runtime_role": true,
+  "timings": {
+    "pg_dump_seconds": 0.51,
+    "pg_restore_seconds": 2.46,
+    "verification_seconds": 2.55
+  },
+  "checks": {
+    "alembic_revision_matches": true,
+    "row_counts_match": true,
+    "rls_on_every_tenant_table": true,
+    "runtime_role_fails_closed": true,
+    "runtime_role_sees_one_tenant": true,
+    "audit_log_append_only": true
+  },
+  "passed": true,
+  "finished_at": "2026-11-13T11:37:36+00:00"
+}

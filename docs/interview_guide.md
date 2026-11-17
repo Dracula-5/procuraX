@@ -34,9 +34,9 @@ Use this as a discussion guide, not a script. The client case is fictional. Sepa
 
 **Why PostgreSQL?** Transactions, constraints, JSONB for explainability snapshots, mature indexing, and row-level security in one relational store.
 
-**Why Redis?** It is not in the current implementation. Consider it only if measured caching, distributed rate limiting or queue needs justify operating another stateful service.
+**Why Redis?** It is not in the current implementation. Notifications use PostgreSQL as the queue (transactional outbox + `SKIP LOCKED`, ADR-013), which keeps enqueueing atomic with the business change and avoids another stateful service on free tiers. Consider Redis only if measured caching, rate limiting or queue volume justifies it.
 
-**Why event-driven processing?** Invoice extraction and notifications may be slow, retryable work and should not hold an API request open. A durable queue with idempotent workers is planned; it is not yet built.
+**Why event-driven processing?** Notifications and invoice extraction are slow, retryable work and should not hold an API request open. Notifications are built this way: the request writes an outbox row in its own transaction; a worker fans it out and delivers with backoff and dead letters, at-least-once with an idempotency key. OCR on the same pattern is next.
 
 **Why not microservices?** Current functional scope benefits more from transactional simplicity and a single deployment unit. Split only when team ownership, independent scaling, fault isolation or deployment cadence makes the operational cost worthwhile.
 
@@ -45,6 +45,20 @@ Use this as a discussion guide, not a script. The client case is fictional. Sepa
 **What if ERP is unavailable?** Queue outbound integration with idempotency keys, retries and dead-letter review; show users the pending state. Reconcile after recovery and never report an external write as complete before acknowledgement.
 
 **How handle retries/idempotency?** Persist a client or event idempotency key with a unique constraint, make handlers safe to replay, use bounded exponential backoff, and route permanent failures to an operator queue.
+
+**How do multi-currency requests work?** The rate is copied onto the request when it is submitted, together with the converted base-currency amount, and every threshold, budget and contract cap uses that amount. A decision can therefore be reproduced from the request row alone, and correcting a rate later does not change approvals already made. Without a rate the request is blocked (VAL-004) rather than guessed. See ADR-016.
+
+**How does ProcuraX hand accounting to the ERP?** As a file, on purpose: balanced journal entries for matched and paid invoices, CSV or JSON, which finance imports and posts. Each export locks and marks the documents it includes, so nothing is exported twice, and the file is kept with its hash. An API push can reuse the same markers later. See ADR-018.
+
+**How are sessions secured?** The access token lives 15 minutes in memory and names its session; the session itself is a rotating refresh token in an HttpOnly, SameSite=Strict cookie that only the auth endpoints receive. Every refresh replaces it, and an old token used again revokes the whole family, which catches a stolen copy. The cookie endpoints also need a CSRF header and an allowed Origin. Sign-out, deactivation and an MFA reset end access at the next request. See ADR-019 and docs/security.md.
+
+**Why not create users from SSO?** Roles, reporting lines and approval limits come from the invitation; an identity provider only proves who someone is. So SSO signs in existing, active users whose verified e-mail matches, and an administrator still invites people. See ADR-020.
+
+**How do you know backups work?** By restoring them. A script dumps the database, restores it into a scratch database and checks the migration revision, row counts per table, forced row-level security on every tenant table, that the runtime role sees nothing without a tenant, and that the audit log is still append-only. CI runs it on every push; the nightly encrypted backup is restored into a throw-away database before it is kept. See ADR-023 and docs/runbook.md.
+
+**How is ProcuraX monitored?** Prometheus metrics with bounded labels (route template, not raw paths), queue depths read from the database at scrape time, eight alerts that each point to a runbook section, a provisioned Grafana dashboard, and optional OpenTelemetry traces whose IDs appear in the JSON logs. See ADR-022.
+
+**How is the Japanese UI built?** The API stays language-neutral (error codes and a `reason` code on business-rule refusals) and the SPA owns the wording through i18next. Keys are typed, so a missing translation fails the build. Rule explanations are rebuilt from each rule hit's structured evidence rather than translating stored English sentences, and dates, numbers and ¥ amounts use `Intl` with the ja-JP locale. The language follows the user across devices (`users.locale`). See ADR-012.
 
 ## AI
 

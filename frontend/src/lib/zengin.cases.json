@@ -1,0 +1,127 @@
+{
+  "source": "Recorded from backend/app/domain/zengin.py to_zengin_kana; both implementations are tested against it.",
+  "cases": [
+    {
+      "input": "ﾔﾏﾀﾞ ﾀﾛｳ",
+      "value": "ﾔﾏﾀﾞ ﾀﾛｳ",
+      "invalid": []
+    },
+    {
+      "input": "ヤマダ タロウ",
+      "value": "ﾔﾏﾀﾞ ﾀﾛｳ",
+      "invalid": []
+    },
+    {
+      "input": "やまだ たろう",
+      "value": "ﾔﾏﾀﾞ ﾀﾛｳ",
+      "invalid": []
+    },
+    {
+      "input": "ガギグゲゴ",
+      "value": "ｶﾞｷﾞｸﾞｹﾞｺﾞ",
+      "invalid": []
+    },
+    {
+      "input": "パピプペポ",
+      "value": "ﾊﾟﾋﾟﾌﾟﾍﾟﾎﾟ",
+      "invalid": []
+    },
+    {
+      "input": "ヴ",
+      "value": "ｳﾞ",
+      "invalid": []
+    },
+    {
+      "input": "ッャュョァ",
+      "value": "ﾂﾔﾕﾖｱ",
+      "invalid": []
+    },
+    {
+      "input": "スーパー",
+      "value": "ｽ-ﾊﾟ-",
+      "invalid": []
+    },
+    {
+      "input": "カ）ヤマダショウジ",
+      "value": "ｶ)ﾔﾏﾀﾞｼﾖｳｼﾞ",
+      "invalid": []
+    },
+    {
+      "input": "ｶ)ﾔﾏﾀﾞｼｮｳｼﾞ",
+      "value": "ｶ)ﾔﾏﾀﾞｼﾖｳｼﾞ",
+      "invalid": []
+    },
+    {
+      "input": "ＡＢＣ１２３",
+      "value": "ABC123",
+      "invalid": []
+    },
+    {
+      "input": "abc-def",
+      "value": "ABC-DEF",
+      "invalid": []
+    },
+    {
+      "input": "Ａ／Ｂ．Ｃ，Ｄ",
+      "value": "A/B.C,D",
+      "invalid": []
+    },
+    {
+      "input": "Mixed かな",
+      "value": "MIXED ｶﾅ",
+      "invalid": []
+    },
+    {
+      "input": "株式会社ミナト",
+      "value": null,
+      "invalid": [
+        "株",
+        "式",
+        "会",
+        "社"
+      ]
+    },
+    {
+      "input": "@#",
+      "value": null,
+      "invalid": [
+        "@",
+        "#"
+      ]
+    },
+    {
+      "input": "東京都",
+      "value": null,
+      "invalid": [
+        "東",
+        "京",
+        "都"
+      ]
+    },
+    {
+      "input": "ﾐﾅﾄ ｷﾞﾝｺｳ",
+      "value": "ﾐﾅﾄ ｷﾞﾝｺｳ",
+      "invalid": []
+    },
+    {
+      "input": "ゐゑを",
+      "value": "ｲｴｦ",
+      "invalid": []
+    },
+    {
+      "input": "ﾊﾟﾋﾟﾌﾟ",
+      "value": "ﾊﾟﾋﾟﾌﾟ",
+      "invalid": []
+    },
+    {
+      "input": "(ｶ)テスト",
+      "value": "(ｶ)ﾃｽﾄ",
+      "invalid": []
+    },
+    {
+      "input": "テスト\\ギンコウ",
+      "value": "ﾃｽﾄ\\ｷﾞﾝｺｳ",
+      "invalid": []
+    }
+  ]
+}

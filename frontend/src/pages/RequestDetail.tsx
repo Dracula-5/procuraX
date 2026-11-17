@@ -2,28 +2,35 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { AlertTriangle, Bot, Pencil, Siren, User } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 import { PRStatusBadge, StepStatusBadge } from "../components/badges";
 import { PolicyPanel } from "../components/PolicyPanel";
 import { Button, Card, ErrorNotice, Field, PageHeader, Spinner, Table, Td, Textarea, Th } from "../components/ui";
 import { api } from "../lib/api";
-import { CATEGORIES, date, dateTime, label, money, relative, ROLE_LABELS } from "../lib/format";
+import { date, dateTime, money, relative } from "../lib/format";
+import { useAuth } from "../auth/useAuth";
+import { useLabels } from "../lib/labels";
 import type { ApprovalStep, AuditEntry, PolicyEvaluation, PRDetail } from "../lib/types";
 
 type Action = "approve" | "reject" | "cancel";
 
-const ACTION_COPY: Record<Action, { title: string; field: string; required: boolean; button: string; variant: "primary" | "danger" }> = {
-  approve: { title: "Approve this step", field: "Comment (optional)", required: false, button: "Approve", variant: "primary" },
-  reject: { title: "Reject this request", field: "Reason (shared with the requester)", required: true, button: "Reject", variant: "danger" },
-  cancel: { title: "Cancel this request", field: "Reason", required: true, button: "Cancel request", variant: "danger" },
+const ACTION_STYLE: Record<Action, { required: boolean; variant: "primary" | "danger" }> = {
+  approve: { required: false, variant: "primary" },
+  reject: { required: true, variant: "danger" },
+  cancel: { required: true, variant: "danger" },
 };
 
 export function RequestDetail() {
+  const { t } = useTranslation();
+  const labels = useLabels();
   const { id } = useParams();
   const qc = useQueryClient();
   const [dialog, setDialog] = useState<Action | null>(null);
   const [comment, setComment] = useState("");
   const [preview, setPreview] = useState<PolicyEvaluation | null>(null);
+  const { me } = useAuth();
+  const baseCurrency = me?.organization.base_currency ?? "JPY";
 
   const pr = useQuery({ queryKey: ["request", id], queryFn: () => api.get<PRDetail>(`/purchase-requests/${id}`) });
   const timeline = useQuery({ queryKey: ["request", id, "timeline"], queryFn: () => api.get<AuditEntry[]>(`/purchase-requests/${id}/timeline`) });
@@ -74,7 +81,7 @@ export function RequestDetail() {
             <PRStatusBadge status={r.status} />
             {r.is_emergency && (
               <span className="inline-flex items-center gap-1 text-warn">
-                <Siren className="size-4" /> Emergency
+                <Siren className="size-4" /> {t("requestDetail.emergency")}
               </span>
             )}
           </span>
@@ -83,28 +90,28 @@ export function RequestDetail() {
           <>
             {can("edit") && (
               <Link to={`/app/requests/${r.id}/edit`} className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-surface-2">
-                <Pencil className="size-4" /> Edit
+                <Pencil className="size-4" /> {t("common.edit")}
               </Link>
             )}
             {can("submit") && (
               <Button onClick={() => transition.mutate({ action: "submit" })} loading={transition.isPending && !dialog}>
-                Submit for approval
+                {t("requestDetail.submit")}
               </Button>
             )}
             {can("reopen") && (
               <Button variant="secondary" onClick={() => transition.mutate({ action: "reopen" })} loading={transition.isPending && !dialog}>
-                Reopen as draft
+                {t("requestDetail.reopen")}
               </Button>
             )}
-            {can("approve") && <Button onClick={() => setDialog("approve")}>Approve</Button>}
+            {can("approve") && <Button onClick={() => setDialog("approve")}>{t("requestDetail.approve")}</Button>}
             {can("reject") && (
               <Button variant="danger" onClick={() => setDialog("reject")}>
-                Reject
+                {t("requestDetail.reject")}
               </Button>
             )}
             {can("cancel") && (
               <Button variant="ghost" onClick={() => setDialog("cancel")}>
-                Cancel request
+                {t("requestDetail.cancelRequest")}
               </Button>
             )}
           </>
@@ -114,8 +121,8 @@ export function RequestDetail() {
       {!dialog && <ErrorNotice error={transition.error} />}
 
       {dialog && (
-        <Card title={ACTION_COPY[dialog].title} className="mb-6">
-          <Field label={ACTION_COPY[dialog].field}>
+        <Card title={t(`requestDetail.dialog.${dialog}.title`)} className="mb-6">
+          <Field label={t(`requestDetail.dialog.${dialog}.field`)}>
             <Textarea autoFocus value={comment} onChange={(e) => setComment(e.target.value)} className="min-h-20" />
           </Field>
           <div className="mt-3">
@@ -123,15 +130,15 @@ export function RequestDetail() {
           </div>
           <div className="mt-3 flex gap-2">
             <Button
-              variant={ACTION_COPY[dialog].variant}
+              variant={ACTION_STYLE[dialog].variant}
               onClick={confirm}
               loading={transition.isPending}
-              disabled={ACTION_COPY[dialog].required && comment.trim().length < 3}
+              disabled={ACTION_STYLE[dialog].required && comment.trim().length < 3}
             >
-              {ACTION_COPY[dialog].button}
+              {t(`requestDetail.dialog.${dialog}.button`)}
             </Button>
             <Button variant="ghost" onClick={() => setDialog(null)}>
-              Back
+              {t("common.back")}
             </Button>
           </div>
         </Card>
@@ -139,41 +146,67 @@ export function RequestDetail() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
         <div className="space-y-6">
-          <Card title="Request">
+          <Card title={t("requestDetail.request")}>
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-              <Detail label="Amount" value={<span className="tabular text-base font-semibold">{money(r.estimated_total, r.currency)}</span>} />
-              <Detail label="Category" value={label(CATEGORIES, r.category)} />
-              <Detail label="Needed by" value={date(r.required_by)} />
-              <Detail label="Requester" value={r.requester_name} />
-              <Detail label="Charged to" value={`${r.cost_center_code ?? "—"} · ${r.department_name ?? "—"}`} />
-              <Detail label="Preferred vendor" value={r.vendor_name ?? "Not specified"} />
-              <Detail label="Submitted" value={dateTime(r.submitted_at)} />
-              <Detail label="Decided" value={dateTime(r.decided_at)} />
-              <Detail label="Fiscal year" value={r.fiscal_year ? `FY${r.fiscal_year}` : "—"} />
+              <Detail
+                label={t("common.amount")}
+                value={
+                  <>
+                    <span className="tabular text-base font-semibold">{money(r.estimated_total, r.currency)}</span>
+                    {r.currency !== baseCurrency && (
+                      <span className="block text-xs text-muted">
+                        {r.base_amount !== null
+                          ? `${t("requestDetail.baseAmount", { currency: baseCurrency })}: ${money(r.base_amount, baseCurrency)}`
+                          : t("requestDetail.fxPending", { base: baseCurrency })}
+                        {r.fx_rate && (
+                          <span className="block">
+                            {t("requestDetail.fxRate", {
+                              currency: r.currency,
+                              rate: r.fx_rate,
+                              base: baseCurrency,
+                              source: t(`fx.sources.${r.fx_source === "ecb" ? "ecb" : "manual"}`),
+                              date: date(r.fx_rate_on),
+                            })}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </>
+                }
+              />
+              <Detail label={t("common.category")} value={labels.category(r.category)} />
+              <Detail label={t("requestForm.neededBy")} value={date(r.required_by)} />
+              <Detail label={t("requests.col.requester")} value={r.requester_name} />
+              <Detail label={t("requestDetail.chargedTo")} value={`${r.cost_center_code ?? "—"} · ${r.department_name ?? "—"}`} />
+              <Detail label={t("requestForm.preferredVendor")} value={r.vendor_name ?? t("requestDetail.notSpecified")} />
+              <Detail label={t("requestDetail.submitted")} value={dateTime(r.submitted_at)} />
+              <Detail label={t("requestDetail.decided")} value={dateTime(r.decided_at)} />
+              <Detail label={t("requestDetail.fiscalYear")} value={r.fiscal_year ? t("common.fy", { year: r.fiscal_year }) : "—"} />
+              {r.contract_number && <Detail label={t("requestDetail.contract")} value={r.contract_number} />}
             </dl>
             {r.justification && (
               <div className="mt-4 border-t border-border pt-3 text-sm">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted">Justification</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted">{t("requestDetail.justification")}</p>
                 <p className="mt-1 whitespace-pre-line">{r.justification}</p>
               </div>
             )}
             {r.cancel_reason && (
               <p className="mt-3 rounded-md bg-surface-2 px-3 py-2 text-sm">
-                <span className="font-medium">Cancelled:</span> {r.cancel_reason}
+                <span className="font-medium">{t("requestDetail.cancelled")}</span> {r.cancel_reason}
               </p>
             )}
           </Card>
 
-          <Card title={`Line items (${r.items.length})`}>
+          <Card title={t("requestDetail.lines", { count: r.items.length })}>
             {r.items.length ? (
               <Table>
                 <thead>
                   <tr>
                     <Th>#</Th>
-                    <Th>Description</Th>
-                    <Th className="text-right">Qty</Th>
-                    <Th className="text-right">Unit price</Th>
-                    <Th className="text-right">Total</Th>
+                    <Th>{t("requestForm.description")}</Th>
+                    <Th className="text-right">{t("common.qty")}</Th>
+                    <Th className="text-right">{t("common.unitPrice")}</Th>
+                    <Th className="text-right">{t("common.total")}</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -191,21 +224,19 @@ export function RequestDetail() {
                 </tbody>
               </Table>
             ) : (
-              <p className="text-sm text-muted">No line items yet.</p>
+              <p className="text-sm text-muted">{t("requestDetail.noLines")}</p>
             )}
           </Card>
 
-          <Card title="Approval chain">
+          <Card title={t("requestDetail.chain")}>
             {currentRound.length ? (
               <Steps steps={currentRound} />
             ) : (
-              <p className="text-sm text-muted">
-                {r.status === "draft" ? "The chain is decided by policy when the request is submitted." : "No human approval steps in the latest submission."}
-              </p>
+              <p className="text-sm text-muted">{r.status === "draft" ? t("requestDetail.chainDraft") : t("requestDetail.chainNone")}</p>
             )}
             {pastRounds.map((round) => (
               <details key={round} className="mt-4 border-t border-border pt-3">
-                <summary className="cursor-pointer text-sm text-muted">Submission {round} (history)</summary>
+                <summary className="cursor-pointer text-sm text-muted">{t("requestDetail.history", { round })}</summary>
                 <div className="mt-3">
                   <Steps steps={r.approvals.filter((s) => s.round === round)} />
                 </div>
@@ -213,31 +244,29 @@ export function RequestDetail() {
             ))}
           </Card>
 
-          <Card title="Timeline">
+          <Card title={t("requestDetail.timeline")}>
             <Timeline entries={timeline.data ?? []} />
           </Card>
         </div>
 
         <div className="space-y-6">
           <Card
-            title="Policy decision"
+            title={t("requestDetail.policyDecision")}
             actions={
               r.status === "draft" && (
                 <Button size="sm" variant="secondary" onClick={() => previewPolicy.mutate()} loading={previewPolicy.isPending}>
-                  Preview
+                  {t("requestDetail.preview")}
                 </Button>
               )
             }
           >
             <ErrorNotice error={previewPolicy.error} />
             {preview ? (
-              <PolicyPanel evaluation={preview} currency={r.currency} preview />
+              <PolicyPanel evaluation={preview} currency={baseCurrency} preview />
             ) : r.policy_evaluation && r.status !== "draft" ? (
-              <PolicyPanel evaluation={r.policy_evaluation} currency={r.currency} />
+              <PolicyPanel evaluation={r.policy_evaluation} currency={baseCurrency} />
             ) : (
-              <p className="text-sm text-muted">
-                Not evaluated yet. Use <span className="font-medium">Preview</span> to see which rules would apply and who would approve.
-              </p>
+              <p className="text-sm text-muted">{t("requestDetail.notEvaluated")}</p>
             )}
           </Card>
         </div>
@@ -256,6 +285,8 @@ function Detail({ label: l, value }: { label: string; value: React.ReactNode }) 
 }
 
 function Steps({ steps }: { steps: ApprovalStep[] }) {
+  const { t } = useTranslation();
+  const labels = useLabels();
   return (
     <ol className="space-y-3">
       {steps.map((s, idx) => (
@@ -273,23 +304,23 @@ function Steps({ steps }: { steps: ApprovalStep[] }) {
           </div>
           <div className="min-w-0 flex-1 pb-1 text-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{label(ROLE_LABELS, s.approver_role)}</span>
+              <span className="font-medium">{labels.role(s.approver_role)}</span>
               <StepStatusBadge status={s.status} />
               {s.is_overdue && (
                 <span className="inline-flex items-center gap-1 text-xs text-warn">
-                  <AlertTriangle className="size-3" /> past SLA
+                  <AlertTriangle className="size-3" /> {t("common.pastSla")}
                 </span>
               )}
             </div>
             <p className="text-xs text-muted">
-              {s.assigned_user_name ? `Assigned to ${s.assigned_user_name}` : `Any ${label(ROLE_LABELS, s.approver_role)}`}
-              {s.status === "pending" && s.due_at && ` · due ${relative(s.due_at)}`}
-              {s.decided_by_name && ` · ${s.status} by ${s.decided_by_name} ${relative(s.decided_at)}`}
+              {s.assigned_user_name ? t("requestDetail.assignedTo", { name: s.assigned_user_name }) : t("requestDetail.anyRole", { role: labels.role(s.approver_role) })}
+              {s.status === "pending" && s.due_at && t("requestDetail.due", { when: relative(s.due_at) })}
+              {s.decided_by_name && t("requestDetail.decidedBy", { status: labels.stepStatus(s.status), name: s.decided_by_name, when: relative(s.decided_at) })}
             </p>
             <ul className="mt-1 space-y-0.5 text-xs text-muted">
               {s.reasons.map((reason, i) => (
                 <li key={i}>
-                  <span className="font-mono">{s.rule_ids[i]}</span> {reason}
+                  <span className="font-mono">{s.rule_ids[i]}</span> {labels.stepReason(s.rule_ids[i], reason)}
                 </li>
               ))}
             </ul>
@@ -302,7 +333,9 @@ function Steps({ steps }: { steps: ApprovalStep[] }) {
 }
 
 function Timeline({ entries }: { entries: AuditEntry[] }) {
-  if (!entries.length) return <p className="text-sm text-muted">No events.</p>;
+  const { t } = useTranslation();
+  const labels = useLabels();
+  if (!entries.length) return <p className="text-sm text-muted">{t("requestDetail.noEvents")}</p>;
   return (
     <ol className="space-y-3">
       {entries.map((e) => {
@@ -313,9 +346,9 @@ function Timeline({ entries }: { entries: AuditEntry[] }) {
               {machine ? <Bot className="size-3.5" /> : <User className="size-3.5" />}
             </span>
             <div className="min-w-0">
-              <p>{e.summary}</p>
+              <p>{labels.auditSummary(e.action, e.summary)}</p>
               <p className="text-xs text-muted">
-                {machine ? "Policy engine (deterministic)" : e.actor_email} · {dateTime(e.created_at)} · <span className="font-mono">{e.action}</span>
+                {machine ? t("requestDetail.policyEngine") : e.actor_email} · {dateTime(e.created_at)} · <span className="font-mono">{e.action}</span>
               </p>
             </div>
           </li>
@@ -324,4 +357,3 @@ function Timeline({ entries }: { entries: AuditEntry[] }) {
     </ol>
   );
 }
-

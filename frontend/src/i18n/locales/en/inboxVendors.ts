@@ -1,0 +1,37 @@
+export const inbox = {
+  title: "Approval inbox",
+  subtitle: "Steps waiting on you — assigned to you by the org structure, or to a team you belong to. Most urgent first.",
+  delegations: "Delegations",
+  emptyTitle: "Nothing to approve",
+  emptyBody: "New steps appear here as soon as policy routes a request to you.",
+  whyYou: "Why you",
+  assignedToYou: "assigned to you",
+  teamQueue: "team queue",
+};
+
+export const vendors = {
+  title: "Vendors",
+  subtitle: "Vendor master. New vendors start in onboarding review; approval is a separate, permissioned action.",
+  onboard: "Onboard vendor",
+  searchPlaceholder: "Search name",
+  empty: "No vendors found",
+  col: { vendor: "Vendor", categories: "Categories", onboarded: "Onboarded", changeStatus: "Change status" },
+  noRegistration: "No invoice registration no.",
+  terms: "{{days}}-day terms",
+  bankAccount: "Bank account",
+  changeStatusOf: "Change status of {{name}}",
+  set: "Set…",
+  reasonPrompt: "Reason for marking {{name}} as {{status}}?",
+  form: {
+    title: "Onboard a vendor",
+    name: "Name",
+    registration: "Invoice registration number",
+    registrationHint: "Japan Qualified Invoice System: T + 13 digits",
+    risk: "Risk level",
+    contract: "Contract",
+    email: "Contact e-mail",
+    terms: "Payment terms (days)",
+    categories: "Categories supplied",
+    create: "Create (pending review)",
+  },
+};

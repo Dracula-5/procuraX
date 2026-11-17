@@ -13,7 +13,7 @@ Severities: **block** stops the request · **route** adds a human approval step 
 | `VAL-001` | Request has no value | A request needs at least one line with a positive total. |
 | `VAL-002` | Cost centre missing | Every request must be charged to a cost centre. |
 | `VAL-003` | Emergency justification insufficient | Emergency purchases bypass line-manager approval, so they require a written justification. |
-| `VAL-004` | Currency mismatch | Request currency must match the policy currency (multi-currency approval is future scope). |
+| `VAL-004` | No exchange rate | A request in another currency needs a recorded exchange rate to the policy currency; amounts are then compared in the policy currency. |
 | `VEN-001` | Vendor blocked or suspended | Purchases from blocked or suspended vendors are not allowed. |
 | `VEN-002` | Vendor not yet approved | Vendors pending onboarding review require procurement review. |
 | `VEN-003` | High-risk vendor | High-risk vendors require procurement review. |
@@ -29,6 +29,7 @@ Severities: **block** stops the request · **route** adds a human approval step 
 | `BUD-002` | Budget exceeded | The request would exceed the remaining budget; finance must approve. |
 | `BUD-003` | Budget nearly exhausted | Budget utilisation after this request is above the warning level. |
 | `SPL-001` | Possible split purchase | Recent requests in the same category, combined with this one, cross an approval threshold that each stays under individually. |
+| `CON-001` | Contract value cap exceeded | The purchase would take spend under the vendor's contract past its value cap (or the cap's currency has no exchange rate); procurement must review. |
 | `EMG-001` | Emergency purchase | Flagged for retrospective procurement review. |
 | `AUTO-001` | Auto-approved | Low-value request with no risk signals; approved by policy. |
 
@@ -48,6 +49,7 @@ Each tenant starts with these values as policy v1 and publishes its own versions
 | `split_purchase_window_days` | `14` |
 | `emergency_min_justification_chars` | `40` |
 | `approval_sla_hours` | `48` |
+| `route_contract_cap_overrun` | `true` |
 
 ## Purchase-request state machine
 

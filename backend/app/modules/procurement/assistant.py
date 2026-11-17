@@ -311,9 +311,9 @@ async def answer_question(
                 PurchaseRequest.org_id == principal.org_id,
                 PurchaseRequest.status == PRStatus.APPROVED.value,
                 PurchaseRequest.category == "software",
-                PurchaseRequest.estimated_total > threshold,
+                PurchaseRequest.base_amount > threshold,
             )
-            .order_by(PurchaseRequest.estimated_total.desc())
+            .order_by(PurchaseRequest.base_amount.desc())
             .limit(50)
         )
         for request_row in requests:

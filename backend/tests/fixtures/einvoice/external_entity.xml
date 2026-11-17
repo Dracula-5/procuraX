@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<!DOCTYPE Invoice [ <!ENTITY secret SYSTEM "file:///etc/passwd"> ]>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
+         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
+  <cbc:ID>&secret;</cbc:ID>
+</Invoice>

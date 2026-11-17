@@ -1,25 +1,21 @@
 import clsx from "clsx";
 import { Ban, CheckCircle2, GitBranch } from "lucide-react";
-import { label, money, percent, ROLE_LABELS } from "../lib/format";
+import { useTranslation } from "react-i18next";
+import { money, percent } from "../lib/format";
+import { useLabels } from "../lib/labels";
 import type { PolicyEvaluation } from "../lib/types";
 import { SeverityBadge } from "./badges";
 
 const OUTCOME = {
-  blocked: { icon: Ban, tone: "border-danger/30 bg-danger-soft text-danger", title: "Blocked by policy" },
-  auto_approved: { icon: CheckCircle2, tone: "border-ok/30 bg-ok-soft text-ok", title: "Auto-approved by policy" },
-  requires_approval: { icon: GitBranch, tone: "border-info/30 bg-info-soft text-info", title: "Human approval required" },
+  blocked: { icon: Ban, tone: "border-danger/30 bg-danger-soft text-danger" },
+  auto_approved: { icon: CheckCircle2, tone: "border-ok/30 bg-ok-soft text-ok" },
+  requires_approval: { icon: GitBranch, tone: "border-info/30 bg-info-soft text-info" },
 } as const;
-
-const BUDGET_LABEL: Record<string, string> = {
-  within_budget: "Within budget",
-  near_limit: "Near budget limit",
-  exceeded: "Exceeds budget",
-  no_budget: "No budget defined",
-  not_applicable: "Not checked",
-};
 
 /** Explains a deterministic policy decision: outcome, every rule that fired, and budget position. */
 export function PolicyPanel({ evaluation, currency, preview }: { evaluation: PolicyEvaluation; currency: string; preview?: boolean }) {
+  const { t } = useTranslation();
+  const labels = useLabels();
   const o = OUTCOME[evaluation.outcome];
   const b = evaluation.budget;
   const utilization = Number(b.utilization_after ?? 0);
@@ -29,14 +25,14 @@ export function PolicyPanel({ evaluation, currency, preview }: { evaluation: Pol
         <o.icon className="mt-0.5 size-5 shrink-0" />
         <div className="text-sm">
           <p className="font-semibold">
-            {preview ? "If submitted now: " : ""}
-            {o.title}
+            {preview ? t("policyPanel.ifSubmitted") : ""}
+            {t(`policyPanel.outcome.${evaluation.outcome}`)}
           </p>
           {evaluation.outcome === "requires_approval" && (
-            <p className="mt-0.5">{evaluation.required_approvals.map((s) => label(ROLE_LABELS, s.role)).join(" → ")}</p>
+            <p className="mt-0.5">{evaluation.required_approvals.map((s) => labels.role(s.role)).join(" → ")}</p>
           )}
           <p className="mt-0.5 text-xs opacity-80">
-            Policy v{evaluation.policy_version} · engine {evaluation.engine_version} · deterministic rules, no ML
+            {t("policyPanel.versions", { policy: evaluation.policy_version, engine: evaluation.engine_version })}
           </p>
         </div>
       </div>
@@ -46,10 +42,10 @@ export function PolicyPanel({ evaluation, currency, preview }: { evaluation: Pol
           <li key={`${h.rule_id}-${i}`} className="rounded-md border border-border p-3 text-sm">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-xs text-muted">{h.rule_id}</span>
-              <span className="font-medium">{h.title}</span>
+              <span className="font-medium">{labels.ruleTitle(h.rule_id, h.title)}</span>
               <SeverityBadge severity={h.severity} />
             </div>
-            <p className="mt-1 text-muted">{h.message}</p>
+            <p className="mt-1 text-muted">{labels.ruleMessage(h, currency)}</p>
           </li>
         ))}
       </ul>
@@ -57,9 +53,9 @@ export function PolicyPanel({ evaluation, currency, preview }: { evaluation: Pol
       {b.status !== "not_applicable" && (
         <div className="rounded-md border border-border p-3 text-sm">
           <div className="flex items-center justify-between">
-            <span className="font-medium">Budget FY{b.fiscal_year}</span>
+            <span className="font-medium">{t("policyPanel.budgetFy", { year: b.fiscal_year })}</span>
             <span className={clsx("text-xs font-medium", b.status === "exceeded" ? "text-danger" : b.status === "near_limit" ? "text-warn" : "text-muted")}>
-              {BUDGET_LABEL[b.status]}
+              {t(`policyPanel.budgetStatus.${b.status}`)}
             </span>
           </div>
           {b.budget_amount && (
@@ -71,15 +67,15 @@ export function PolicyPanel({ evaluation, currency, preview }: { evaluation: Pol
                 />
               </div>
               <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted">
-                <dt>Budget</dt>
+                <dt>{t("policyPanel.budget")}</dt>
                 <dd className="tabular text-right">{money(b.budget_amount, currency)}</dd>
-                <dt>Already committed</dt>
+                <dt>{t("policyPanel.committed")}</dt>
                 <dd className="tabular text-right">{money(b.committed, currency)}</dd>
-                <dt>This request</dt>
+                <dt>{t("policyPanel.thisRequest")}</dt>
                 <dd className="tabular text-right">{money(b.requested, currency)}</dd>
-                <dt>Remaining after</dt>
+                <dt>{t("policyPanel.remainingAfter")}</dt>
                 <dd className="tabular text-right">{money(b.remaining_after, currency)}</dd>
-                <dt>Utilisation after</dt>
+                <dt>{t("policyPanel.utilisationAfter")}</dt>
                 <dd className="tabular text-right">{percent(b.utilization_after)}</dd>
               </dl>
             </>
@@ -89,4 +85,3 @@ export function PolicyPanel({ evaluation, currency, preview }: { evaluation: Pol
     </div>
   );
 }
-

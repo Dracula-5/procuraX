@@ -53,6 +53,14 @@ class PurchaseRequest(UUIDPkMixin, TimestampMixin, TenantMixin, Base):
     category: Mapped[str] = mapped_column(String(40))
     currency: Mapped[str] = mapped_column(String(3))
     estimated_total: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=Decimal("0"))
+    # Base-currency value used by policy, budgets and analytics. Equal to estimated_total for requests in
+    # the base currency; for other currencies set at submission from the snapshotted rate (NULL before).
+    base_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+    fx_rate: Mapped[Decimal | None] = mapped_column(Numeric(18, 8))
+    fx_rate_on: Mapped[date | None] = mapped_column(Date)
+    fx_source: Mapped[str | None] = mapped_column(String(40))
+    # The in-force contract that covered this purchase at submission (counts against its cap).
+    contract_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("contracts.id"), index=True)
     required_by: Mapped[date | None] = mapped_column(Date)
     preferred_vendor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("vendors.id"))
     is_emergency: Mapped[bool] = mapped_column(Boolean, default=False)
