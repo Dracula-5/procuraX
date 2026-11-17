@@ -58,6 +58,12 @@ Use this as a discussion guide, not a script. The client case is fictional. Sepa
 
 **How is ProcuraX monitored?** Prometheus metrics with bounded labels (route template, not raw paths), queue depths read from the database at scrape time, eight alerts that each point to a runbook section, a provisioned Grafana dashboard, and optional OpenTelemetry traces whose IDs appear in the JSON logs. See ADR-022.
 
+**How do you stop AI from making decisions?** Structurally. Every model call goes through one gateway that records the output with model, version and input hash; AI output can only add flags, suggestions or cited text; and tests fail if the policy engine, workflow, matching, payment or journal code imports an AI module, or if the AI package writes a decision column. Submitting with the advisors switched off gives exactly the same policy result. See ADR-024.
+
+**Why is retrieval BM25 when you built pgvector?** Because I measured it. On the official NTA Q&A, fusing a local hashing embedding with BM25 lowered Recall@5 from 0.906 to 0.825, so BM25 stays the default and the hybrid path waits for a semantic embedding model that beats it on the same benchmark. See ADR-025.
+
+**How is model-written SQL kept safe?** sqlglot parses it and only one SELECT over allow-listed tables, columns and functions passes (no `set_config`, which could switch off row-level security); it then runs in a read-only, time-boxed savepoint under the user's tenant. A test injects a DELETE past the guard and shows the database refuses it. See ADR-026.
+
 **How is the Japanese UI built?** The API stays language-neutral (error codes and a `reason` code on business-rule refusals) and the SPA owns the wording through i18next. Keys are typed, so a missing translation fails the build. Rule explanations are rebuilt from each rule hit's structured evidence rather than translating stored English sentences, and dates, numbers and ¥ amounts use `Intl` with the ja-JP locale. The language follows the user across devices (`users.locale`). See ADR-012.
 
 ## AI

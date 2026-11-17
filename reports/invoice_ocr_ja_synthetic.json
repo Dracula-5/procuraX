@@ -1,0 +1,178 @@
+{
+  "dataset": "synthetic_rendered_japanese_invoices_v1",
+  "synthetic": true,
+  "generated_on": "2026-11-13",
+  "seed": 62,
+  "split": "held-out",
+  "samples_per_condition": 30,
+  "font": "YuGothR.ttc",
+  "engine": "tesseract 5.5.0",
+  "ocr_runtime": "docker image procurax-api:local (tesseract-ocr + tesseract-ocr-jpn, --psm 6)",
+  "parser": "app.ml.invoice_text.extract_invoice_text (strict / ocr_tolerant)",
+  "conditions": {
+    "clean": "rendered at 34 px",
+    "degraded": "±1.5° rotation, blur, noise, 70 % scale, JPEG q45"
+  },
+  "results": {
+    "eng/clean/strict": {
+      "documents": 30,
+      "average_field_accuracy": 0.0,
+      "documents_fully_correct": 0.0,
+      "wrong_value_rate": 0.0,
+      "field_accuracy": {
+        "vendor": 0.0,
+        "invoice_number": 0.0,
+        "invoice_date": 0.0,
+        "registration_number": 0.0,
+        "purchase_order_number": 0.0,
+        "currency": 0.0,
+        "quantity": 0.0,
+        "subtotal": 0.0,
+        "tax": 0.0,
+        "total": 0.0
+      },
+      "ocr_ms_p50": 443.5,
+      "ocr_ms_p95": 516
+    },
+    "eng/clean/ocr_tolerant": {
+      "documents": 30,
+      "average_field_accuracy": 0.0,
+      "documents_fully_correct": 0.0,
+      "wrong_value_rate": 0.0,
+      "field_accuracy": {
+        "vendor": 0.0,
+        "invoice_number": 0.0,
+        "invoice_date": 0.0,
+        "registration_number": 0.0,
+        "purchase_order_number": 0.0,
+        "currency": 0.0,
+        "quantity": 0.0,
+        "subtotal": 0.0,
+        "tax": 0.0,
+        "total": 0.0
+      },
+      "ocr_ms_p50": 443.5,
+      "ocr_ms_p95": 516
+    },
+    "eng/degraded/strict": {
+      "documents": 30,
+      "average_field_accuracy": 0.0,
+      "documents_fully_correct": 0.0,
+      "wrong_value_rate": 0.0,
+      "field_accuracy": {
+        "vendor": 0.0,
+        "invoice_number": 0.0,
+        "invoice_date": 0.0,
+        "registration_number": 0.0,
+        "purchase_order_number": 0.0,
+        "currency": 0.0,
+        "quantity": 0.0,
+        "subtotal": 0.0,
+        "tax": 0.0,
+        "total": 0.0
+      },
+      "ocr_ms_p50": 427.5,
+      "ocr_ms_p95": 513
+    },
+    "eng/degraded/ocr_tolerant": {
+      "documents": 30,
+      "average_field_accuracy": 0.0,
+      "documents_fully_correct": 0.0,
+      "wrong_value_rate": 0.0,
+      "field_accuracy": {
+        "vendor": 0.0,
+        "invoice_number": 0.0,
+        "invoice_date": 0.0,
+        "registration_number": 0.0,
+        "purchase_order_number": 0.0,
+        "currency": 0.0,
+        "quantity": 0.0,
+        "subtotal": 0.0,
+        "tax": 0.0,
+        "total": 0.0
+      },
+      "ocr_ms_p50": 427.5,
+      "ocr_ms_p95": 513
+    },
+    "jpn+eng/clean/strict": {
+      "documents": 30,
+      "average_field_accuracy": 0.79,
+      "documents_fully_correct": 0.0,
+      "wrong_value_rate": 0.1,
+      "field_accuracy": {
+        "vendor": 1.0,
+        "invoice_number": 1.0,
+        "invoice_date": 1.0,
+        "registration_number": 0.5667,
+        "purchase_order_number": 0.1,
+        "currency": 1.0,
+        "quantity": 1.0,
+        "subtotal": 0.9,
+        "tax": 0.5333,
+        "total": 0.8
+      },
+      "ocr_ms_p50": 698.0,
+      "ocr_ms_p95": 779
+    },
+    "jpn+eng/clean/ocr_tolerant": {
+      "documents": 30,
+      "average_field_accuracy": 0.9867,
+      "documents_fully_correct": 0.8667,
+      "wrong_value_rate": 0.0067,
+      "field_accuracy": {
+        "vendor": 1.0,
+        "invoice_number": 1.0,
+        "invoice_date": 1.0,
+        "registration_number": 0.9333,
+        "purchase_order_number": 1.0,
+        "currency": 1.0,
+        "quantity": 1.0,
+        "subtotal": 1.0,
+        "tax": 0.9333,
+        "total": 1.0
+      },
+      "ocr_ms_p50": 698.0,
+      "ocr_ms_p95": 779
+    },
+    "jpn+eng/degraded/strict": {
+      "documents": 30,
+      "average_field_accuracy": 0.6567,
+      "documents_fully_correct": 0.0,
+      "wrong_value_rate": 0.2167,
+      "field_accuracy": {
+        "vendor": 1.0,
+        "invoice_number": 0.9,
+        "invoice_date": 1.0,
+        "registration_number": 0.6333,
+        "purchase_order_number": 0.4,
+        "currency": 0.7667,
+        "quantity": 1.0,
+        "subtotal": 0.4667,
+        "tax": 0.1,
+        "total": 0.3
+      },
+      "ocr_ms_p50": 676.5,
+      "ocr_ms_p95": 779
+    },
+    "jpn+eng/degraded/ocr_tolerant": {
+      "documents": 30,
+      "average_field_accuracy": 0.95,
+      "documents_fully_correct": 0.5667,
+      "wrong_value_rate": 0.03,
+      "field_accuracy": {
+        "vendor": 1.0,
+        "invoice_number": 1.0,
+        "invoice_date": 1.0,
+        "registration_number": 0.9667,
+        "purchase_order_number": 0.9667,
+        "currency": 0.9667,
+        "quantity": 1.0,
+        "subtotal": 0.8667,
+        "tax": 0.9,
+        "total": 0.8333
+      },
+      "ocr_ms_p50": 676.5,
+      "ocr_ms_p95": 779
+    }
+  }
+}

@@ -190,6 +190,14 @@ Users turn it on under **Security settings**. It needs `PROCURAX_DATA_ENCRYPTION
 one); keep that key stable, or list the old one after the new one when rotating, or existing secrets become
 unreadable.
 
+## Language model (optional, costs money)
+
+Off by default: `PROCURAX_LLM_PROVIDER=replay` answers only from recordings and makes no network calls. To use
+Claude, set `PROCURAX_LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` (model `PROCURAX_LLM_MODEL`, default
+`claude-opus-5-5`; effort `PROCURAX_LLM_EFFORT`). Every call is billed by Anthropic; every answer is recorded in
+`ai_predictions`. With `PROCURAX_LLM_RECORD=true` and `PROCURAX_LLM_REPLAY_DIR`, answers are also saved so that
+CI and demos can replay them without a key.
+
 ## Metrics, tracing and backups
 
 `render.yaml` generates `PROCURAX_METRICS_TOKEN`; a Prometheus-compatible service (self-hosted, or a hosted

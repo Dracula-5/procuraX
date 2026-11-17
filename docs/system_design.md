@@ -188,29 +188,37 @@ have forced RLS.
 
 Planned tables: invoice line items, `spend_transactions`, `ai_predictions`, `feedback`.
 
-## 7. AI architecture *(offline baselines delivered; full AI pipeline planned)*
+## 7. AI architecture *(gateway, advisory flags, retrieval, guarded SQL built; LLM off by default)*
 
-Current offline components are a synthetic-data TF-IDF/logistic regression spend classifier,
-a robust log-MAD amount outlier baseline, a pairwise vendor ranker with synthetic evaluator, a
-deterministic parser for labeled invoice text with an OCR-tolerant mode, a local Tesseract/PDF
-OCR adapter (benchmarked end to end on synthetic renders), and BM25 retrieval over
-tenant-versioned text sources plus versioned policy rules. The assistant returns active
-threshold configuration and cited source excerpts. Sourcing awards persist the baseline
-recommendation, the human decision and any override reason (`vendor_quotes.award_context`).
-No AI result is connected to automatic approval or payment.
+**Rule: AI recommends · rules enforce · humans decide.** No model, LLM or agent changes a policy outcome,
+approves or rejects a step, awards a quote, approves a payment or exports a bank file. AI output only adds
+advisory flags, suggestions or cited summaries, and every output is stored in `ai_predictions` (model,
+version, input reference and SHA-256, latency, tokens; insert-only for the runtime role).
+`tests/unit/test_ai_boundaries.py` fails if the policy engine, the workflow state machines, the matching
+rules, the Zengin builder, the payment export or the journal export import an AI/ML module, and if the AI
+package assigns a decision column (ADR-024).
 
-- An **AI gateway** module wraps every model call. It records inputs, output, confidence,
-  latency, model version and the eventual human decision in `ai_predictions`. This is the
-  basis for acceptance and override metrics and for drift detection.
-- AI outputs enter the workflow only as **recommendations or signals**. The policy engine and
-  match rules decide, and people approve (see product spec §5).
-- *(Planned, gap-closure Phase 8.)* Semantic retrieval will use pgvector in the same PostgreSQL,
-  under the same RLS, so tenant-aware retrieval is structural and not a filter someone could
-  forget (ADR-002). Today the database runs the `pgvector/pgvector:pg16` **image only**: no
-  migration creates the extension, no table has a vector column, and retrieval is BM25.
-- The analytics assistant will generate SQL only against **read-only, RLS-bound views**,
-  validate it with a parser allow-list, and run it as a read-only role with a statement
-  timeout.
+- **Gateway** (`app/ai/gateway.py`): the one door to models. LLM providers: `replay` (default; recorded
+  answers keyed by the prompt's SHA-256, no network) and `anthropic` (Claude through the official SDK,
+  `claude-opus-5-5` by default, server-side refusal fallback on, cached system prompt; behind
+  `PROCURAX_LLM_PROVIDER`, costs money, needs a key). With `PROCURAX_LLM_RECORD=true` real answers are saved for
+  replay in CI and demos.
+- **Advisory flags** (`app/ai/advisors.py`): after the policy engine has decided, a submitted request gets
+  ML flags (robust log-amount outlier within its category, possible duplicate by title, requester and
+  vendor). Shown beside the request as "for review"; an advisor failure never blocks a submission; a
+  test proves the policy result is identical with the advisors off.
+- **Knowledge answers**: chunks of tenant documents are indexed with a local embedding in `knowledge_chunks`
+  (pgvector `vector(256)`, HNSW cosine index, RLS). Retrieval is BM25 by default and BM25 + pgvector fused by
+  reciprocal rank fusion in `hybrid` mode; the default follows the measurement (ADR-025). When a model is
+  configured it may write a short summary from the numbered sources; the answer is shown only if every
+  citation points at a given source, otherwise the extractive citations alone are returned.
+- **Guarded SQL** (`app/ai/sql_guard.py`, ADR-026): for analytics questions outside the fixed intents a model
+  may draft one SELECT. sqlglot parses it; only allow-listed tables, columns and functions pass (no
+  `set_config`/`current_setting`, no bank details, no `*`, no comments, LIMIT ≤ 200); it runs in a read-only,
+  3-second savepoint under the caller's tenant (RLS). A test shows a write that slips past the guard is still
+  refused by the database.
+- **OCR**: Tesseract (`jpn+eng` in the image) plus the labelled-line parser, which reads Japanese labels,
+  full-width text, 円 amounts and 和文 dates; benchmarked on synthetic Japanese renders (§ benchmark report).
 
 ## 8. Integration architecture *(notifications built; the rest planned)*
 
@@ -542,3 +550,32 @@ append-only audit log). *Alternatives:* trust the provider alone (no independent
 compromise loses both); physical backups (not available on managed free tiers). *Consequences:* the
 nightly job needs the owner connection string and a passphrase as GitHub secrets and stays off until they
 exist; object storage relies on bucket versioning, with SHA-256 hashes in the database to verify files.
+
+**ADR-024 Models advise through one recorded gateway and never decide.** *Context:* the brief's rule (AI
+recommends, rules enforce, humans decide) has to survive future code changes. *Decision:* every model call
+goes through `app/ai/gateway.py`, which stores the output with model, version, input reference and hash in an
+insert-only table; AI output may only add flags, suggestions or cited text; structural tests keep the policy
+engine, workflow, matching, payment and journal code free of AI imports and the AI package free of writes to
+decision columns. The default LLM provider replays recordings only, so nothing calls a paid API unless an
+operator switches it on. *Alternatives:* calling models from feature code (no audit trail, easy to let a
+model decide); a separate AI service (latency and another deployment for no new capability).
+*Consequences:* acceptance and override analysis can be built on `ai_predictions`; a model outage degrades
+to the deterministic path; replay keeps CI free and reproducible.
+
+**ADR-025 Retrieval is chosen by measurement: BM25 by default, pgvector hybrid available.** *Context:* the
+brief asked for pgvector hybrid retrieval; the only real evaluation set is the NTA Q&A. *Decision:* chunks are
+indexed with a local hashing embedding in pgvector (HNSW, cosine) under RLS, and both rankers are available;
+the default is BM25 because, with that embedding, the hybrid ranking measured lower (Recall@5 0.906 BM25 vs
+0.825 hybrid, see the benchmark report). *Alternatives:* ship hybrid regardless (worse answers today); a
+neural embedding API (better semantics, but a paid external call per document and question: an operator
+decision). *Consequences:* switching `PROCURAX_RETRIEVAL_MODE=hybrid` with a semantic embedding is a
+configuration change plus re-indexing, and must be re-measured on the same benchmark first.
+
+**ADR-026 Model-written SQL runs only after a parser allow-list, read-only, under RLS.** *Context:* analytics
+questions outrun fixed intents, but generated SQL is an injection surface, and the RLS bypass is a session
+setting a SELECT could change. *Decision:* sqlglot parses the draft; one SELECT over allow-listed tables,
+columns and functions (never `set_config`, `current_setting`, `pg_sleep`, system catalogs, bank details) with
+a LIMIT; executed in a read-only, time-boxed savepoint under the caller's tenant; every draft, refusal and run
+is recorded. *Alternatives:* views per question (safe but no flexibility); a separate read-only database role
+(stronger isolation; needs a second connection pool and grants per view — next step if the feature is used).
+*Consequences:* refusals are explained with a reason code; a guard gap still cannot write or leave the tenant.

@@ -11,11 +11,11 @@
     "attribution": "出典：国税庁「消費税の仕入税額控除制度における適格請求書等保存方式に関するＱ＆Ａ」を加工して作成",
     "edits": "Extracted Q&A pairs from the PDF text layer, normalised whitespace, removed revision tags"
   },
-  "generated_on": "2026-10-01",
+  "generated_on": "2026-11-13",
   "queries": 171,
   "answer_chunks": 299,
   "task": "Official question → retrieve a chunk of its official answer among all answers (answer-level ranks)",
-  "ranker": "production BM25 (_rank_texts, k1=1.2, b=0.75) over production 900-character chunks",
+  "ranker": "production BM25 (_rank_texts, k1=1.2, b=0.75) over production 900-character chunks; embedding hashing-ngram-256@1 (cosine); hybrid = reciprocal rank fusion (k=60) of the top 20 of each",
   "results": {
     "ascii_words_baseline": {
       "queries_with_no_terms": 100,
@@ -23,8 +23,8 @@
       "recall_at_5": 0.1579,
       "mrr_at_10": 0.1377,
       "latency_ms_per_query": {
-        "p50": 0.0,
-        "p95": 12.0
+        "p50": 1.2,
+        "p95": 43.3
       }
     },
     "cjk_bigram": {
@@ -33,8 +33,28 @@
       "recall_at_5": 0.9064,
       "mrr_at_10": 0.7935,
       "latency_ms_per_query": {
-        "p50": 78.6,
-        "p95": 110.0
+        "p50": 300.6,
+        "p95": 379.4
+      }
+    },
+    "hashing_vector": {
+      "queries_with_no_terms": 0,
+      "recall_at_1": 0.4211,
+      "recall_at_5": 0.7193,
+      "mrr_at_10": 0.5396,
+      "latency_ms_per_query": {
+        "p50": 24.6,
+        "p95": 31.3
+      }
+    },
+    "hybrid_rrf": {
+      "queries_with_no_terms": 0,
+      "recall_at_1": 0.5731,
+      "recall_at_5": 0.8246,
+      "mrr_at_10": 0.6741,
+      "latency_ms_per_query": {
+        "p50": 307.7,
+        "p95": 421.4
       }
     }
   },

@@ -61,6 +61,7 @@ The controls exist on paper but are not operationalised.
 | Currencies | Converted by hand, if at all | Requests in other currencies converted at submission with a recorded rate (manual or ECB); policy and budgets in the base currency | ✅ (ECB adapter tested on a fixture, not live) |
 | Ledger | Re-keyed into the ERP | Balanced journal entries (CSV / JSON) for matched and paid invoices, each exported once | ✅ file export; no ERP API push |
 | Audit | Reconstructed by hand | Append-only trail, enforced by database grants | ✅ |
+| AI | Ad-hoc, unaudited | Advisory flags, cited knowledge answers and guarded read-only SQL through one recorded gateway; models never decide; LLM off by default (replay) | ✅ (real LLM not called: needs your API key) |
 | Operations | Logs only | Prometheus metrics, eight alerts with runbook sections, Grafana dashboard, optional OpenTelemetry traces; backups proven by a restore drill in CI | ✅ locally (no hosted metrics backend for the live demo yet) |
 | Sign-in | Shared passwords, no second factor | Rotating HttpOnly sessions, CSRF checks, optional TOTP two-factor sign-in, OpenID Connect SSO, shared brute-force limits | ✅ (SSO tested against a local provider stand-in, not a real IdP) |
 | PO → receipt → invoice → 3-way match | ERP keying, visual checks | Supplier line prices flow to PO lines; cumulative line match (no double billing); consumption tax per rate; registration number check digit, vendor master and NTA registry (optional); Peppol / JP PINT UBL import; finance exception decision | 🟡 P6–P7; Zengin export done; registry lookup untested against the live NTA API; Peppol sending out of scope |
@@ -96,7 +97,7 @@ What makes it enterprise-grade rather than CRUD:
 - **Least privilege in the database.** The app role cannot UPDATE or DELETE audit rows or edit
   the RBAC catalogue.
 
-→ [System design & 23 ADRs] · [Security model](docs/security.md) · [Runbook](docs/runbook.md)(docs/system_design.md) · [Dataset strategy](docs/datasets.md) · [Local verification](docs/local_verification.md) ·
+→ [System design & 26 ADRs] · [Security model](docs/security.md) · [Runbook](docs/runbook.md)(docs/system_design.md) · [Dataset strategy](docs/datasets.md) · [Local verification](docs/local_verification.md) ·
 [Product spec](docs/product_spec.md) ·
 [Free deployment](docs/deployment.md) · [Illustrative personas](docs/user_personas.md) ·
 [RBAC matrix (generated)](docs/generated/rbac_matrix.md) ·
@@ -131,9 +132,9 @@ Current implementation verification:
 
 | What | Result |
 |---|---|
-| Backend API and domain tests | 357 passing (gap-closure Phase 7; plus 1 opt-in real-ClamAV test), including tenant isolation, RLS, concurrency, notification workers, invoice-file immutability, NTA registry (mocked), UBL import, contracts, exchange rates, journal export, sessions, TOTP, OIDC (mocked provider), metrics and tracing |
+| Backend API and domain tests | 395 passing (gap-closure Phase 8; plus 1 opt-in real-ClamAV test), including tenant isolation, RLS, concurrency, notification workers, invoice-file immutability, NTA registry (mocked), UBL import, contracts, exchange rates, journal export, sessions, TOTP, OIDC (mocked provider), metrics, tracing, SQL guard, AI boundaries and advisory flags |
 | Frontend production build | Passed (`tsc -b` + Vite). Main bundle 308.27 kB JS (96.06 kB gzip) with signed-in pages split into route chunks and Japanese strings in a 66.66 kB chunk loaded on demand; 27.40 kB CSS |
-| Frontend tests | 76 passing (Vitest + Testing Library): translations, formatting, error mapping, permission guard, language switcher, bank-account form, delegation screen, notifications, contracts, exchange rates, journal export, session renewal, two-factor sign-in, security settings |
+| Frontend tests | 79 passing (Vitest + Testing Library): translations, formatting, error mapping, permission guard, language switcher, bank-account form, delegation screen, notifications, contracts, exchange rates, journal export, session renewal, two-factor sign-in, security settings, AI panels |
 | Backend static checks | Ruff, ruff format and mypy passed |
 | API/database migration | Empty database → head → base → head and `alembic check`: no schema drift |
 | Invoice OCR | 40 rendered synthetic invoices per condition, held-out seed: see [benchmark report](reports/final_benchmark.md#invoice-ocr-end-to-end) |

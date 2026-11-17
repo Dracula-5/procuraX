@@ -140,6 +140,23 @@ Full check list: **357 backend tests passed, 1 skipped** (opt-in real ClamAV), *
 migrations round trip + `alembic check`, `gen_docs`, `check_doc_claims` (23 ADRs), `pip-audit`, `npm audit`,
 `oxlint`, build: all passed on the first full run.
 
-## Phases 8–10
+## Phase 8: AI (branch `gaps/phase-8-ai`, notes: [prs/phase-8.md](prs/phase-8.md))
+
+| Gap | Status | Verified by | Remaining |
+|---|---|---|---|
+| AI gateway; `ai_predictions` with model, version, input reference | ✅ | Integration tests: every knowledge answer and SQL draft recorded with model/version/hash; insert-only for the runtime role; RLS | No acceptance/override analytics yet |
+| Advisory flags only (AI never decides) + boundary test on `app/domain/policy/` | ✅ | AST tests (policy, domain, workflow, matching, payments, journal free of AI imports; AI package writes no decision column); identical policy result with advisors failing | — |
+| pgvector hybrid retrieval | 🟡 | Extension + `knowledge_chunks` (HNSW, RLS) built and tested; **measured on the official NTA Q&A: hybrid Recall@5 0.825 < BM25 0.906**, so BM25 is the default | Needs a semantic embedding model (paid API or a local model) and a re-run of the benchmark |
+| LLM with replay mode, cited answers | 🟡 | Replay provider unit-tested; cited/mis-cited answers handled in integration tests with a stand-in model; Claude provider written against the official SDK (parameters checked) | **Real Claude API not called** (needs your key); no recordings yet |
+| sqlglot SQL guard | ✅ | 23 attack/acceptance cases; read-only savepoint refuses an injected DELETE; RLS limits rows to the tenant | Dedicated read-only role and views not built |
+| Japanese OCR benchmark | ✅ (synthetic) | Held-out synthetic renders: strict → tolerant clean 0.790 → 0.987, degraded 0.657 → 0.950 ([report](invoice_ocr_ja_synthetic.json)) | Real scanned invoices not measured |
+| *Found:* knowledge citations mixed BM25 and RRF score scales | ✅ | Ranks fused by RRF; test asserts the tenant document is cited | — |
+| *Found:* SQL guard alone is not enough (`set_config` could switch RLS bypass on) | ✅ | Function allow-list + read-only execution; tests for both | — |
+
+Full check list: **395 backend tests passed, 1 skipped** (opt-in real ClamAV), **79 frontend tests**,
+migrations round trip + `alembic check`, `gen_docs`, `check_doc_claims` (26 ADRs), `pip-audit`, `npm audit`,
+`oxlint`, build: all passed on the first full run.
+
+## Phases 9–10
 
 Not started. Rows are added when each phase begins.
