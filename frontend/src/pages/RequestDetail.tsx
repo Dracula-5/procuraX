@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 import { PRStatusBadge, StepStatusBadge } from "../components/badges";
+import { AdvisoryFlags } from "../components/AiPanels";
 import { PolicyPanel } from "../components/PolicyPanel";
 import { Button, Card, ErrorNotice, Field, PageHeader, Spinner, Table, Td, Textarea, Th } from "../components/ui";
 import { api } from "../lib/api";
@@ -269,6 +270,7 @@ export function RequestDetail() {
               <p className="text-sm text-muted">{t("requestDetail.notEvaluated")}</p>
             )}
           </Card>
+          {r.status !== "draft" && <AdvisoryFlags requestId={r.id} />}
         </div>
       </div>
     </>

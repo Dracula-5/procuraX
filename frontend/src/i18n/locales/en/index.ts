@@ -1,3 +1,4 @@
+import { ai } from "./ai";
 import { assistant, budgets, knowledge } from "./assistantBudgets";
 import { app, audit, auth, badges, bank, common, dashboard, delegations, errors, landing, layout, nav, notice, paymentSettings, policy, structure, users } from "./core";
 import { contracts, fx, ledger } from "./finance";
@@ -44,6 +45,7 @@ export const en = {
   fx,
   ledger,
   security,
+  ai,
 };
 
 export type Messages = typeof en;

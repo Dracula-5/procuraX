@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { SqlAnalysis } from "../components/AiPanels";
 import { Button, Card, EmptyState, ErrorNotice, Field, PageHeader, Textarea } from "../components/ui";
 import { api } from "../lib/api";
 import { KnowledgeSearch } from "./KnowledgeSearch";
@@ -70,6 +71,7 @@ export function Assistant() {
           )}
         </Card>
       )}
+      <SqlAnalysis />
       <KnowledgeSearch />
     </>
   );

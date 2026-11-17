@@ -3,11 +3,11 @@ import { BookOpen } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../auth/useAuth";
-import { Button, Card, EmptyState, ErrorNotice, Field, Input, Textarea } from "../components/ui";
+import { Badge, Button, Card, EmptyState, ErrorNotice, Field, Input, Textarea } from "../components/ui";
 import { api } from "../lib/api";
 
 type Citation = { id: string; title: string; excerpt: string; score: number };
-type Answer = { answer: string; strategy: string; citations: Citation[] };
+type Answer = { answer: string; strategy: string; citations: Citation[]; generated?: boolean; model?: string | null };
 type KnowledgeDocument = { id: string; title: string; version: number; is_active: boolean; source_reference: string | null };
 
 /** Cited retrieval over policy rules and tenant documents (Japanese and English). */
@@ -34,6 +34,11 @@ export function KnowledgeSearch() {
         <ErrorNotice error={ask.error} />
         {ask.data && (
           <div className="mt-4">
+            {ask.data.generated && (
+              <p className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted">
+                <Badge tone="info">{t("ai.summary.badge")}</Badge> {t("ai.summary.note", { model: ask.data.model ?? "" })}
+              </p>
+            )}
             <p className="text-sm font-medium">{ask.data.answer}</p>
             {ask.data.citations.length ? (
               <ol className="mt-3 space-y-3">
