@@ -55,8 +55,14 @@ jobs:
           uv run alembic check
       - name: Tests (unit, API, tenant isolation, RLS) with coverage
         run: uv run pytest --cov --cov-report=term --cov-report=xml
+      - name: Migrations round-trip on the populated test database (downgrades must be data-safe)
+        run: |
+          uv run alembic downgrade base
+          uv run alembic upgrade head
       - name: Generated docs (RBAC matrix, policy reference, OpenAPI) are up to date
         run: uv run python -m app.scripts.gen_docs --check
+      - name: README and docs state the same role, permission, rule and ADR counts as the code
+        run: uv run python -m app.scripts.check_doc_claims
       - name: Dependency vulnerability audit
         run: uv export --frozen --no-dev --no-hashes -o requirements.txt && uvx pip-audit -r requirements.txt
 
@@ -76,6 +82,8 @@ jobs:
       - run: npm ci
       - run: npx oxlint src
       - run: npm run build
+      - name: Unit and component tests (Vitest + Testing Library)
+        run: npm test
       - run: npm audit --omit=dev --audit-level=high
 
   image:

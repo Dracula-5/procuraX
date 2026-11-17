@@ -25,7 +25,16 @@ _ALLOWED = set(_HALF) | set("ﾞﾟ") | set("ABCDEFGHIJKLMNOPQRSTUVWXYZ012345678
 
 
 class ZenginError(ValueError):
-    """A value cannot be represented in a Zengin record."""
+    """A value cannot be represented in a Zengin record.
+
+    `field` names the input field when known; `kind` is "invalid_characters", "too_long" or "format",
+    so an API can return a stable code the UI translates.
+    """
+
+    def __init__(self, message: str, *, field: str | None = None, kind: str = "format") -> None:
+        super().__init__(message)
+        self.field = field
+        self.kind = kind
 
 
 def to_zengin_kana(text: str) -> str:
@@ -43,20 +52,30 @@ def to_zengin_kana(text: str) -> str:
         else:
             invalid.append(char)
     if invalid:
-        raise ZenginError(f"Not allowed in a bank transfer name: {''.join(dict.fromkeys(invalid))}")
+        raise ZenginError(
+            f"Not allowed in a bank transfer name: {''.join(dict.fromkeys(invalid))}",
+            kind="invalid_characters",
+        )
     return "".join(out)
 
 
-def _alnum(value: str, length: int, label: str) -> str:
+def _alnum(value: str, length: int, label: str, field: str | None = None) -> str:
     if not value.isdigit() or len(value) > length:
-        raise ZenginError(f"{label} must be up to {length} digits")
+        raise ZenginError(f"{label} must be up to {length} digits", field=field)
     return value.zfill(length)
 
 
-def _text(value: str, length: int, label: str) -> str:
-    kana = to_zengin_kana(value)
+def _text(value: str, length: int, label: str, field: str | None = None) -> str:
+    try:
+        kana = to_zengin_kana(value)
+    except ZenginError as exc:
+        raise ZenginError(str(exc), field=field, kind=exc.kind) from exc
     if len(kana) > length:
-        raise ZenginError(f"{label} is longer than {length} characters after conversion: {kana}")
+        raise ZenginError(
+            f"{label} is longer than {length} characters after conversion: {kana}",
+            field=field,
+            kind="too_long",
+        )
     return kana.ljust(length)
 
 
@@ -79,14 +98,24 @@ class Transfer:
 
 
 def validate_account(account: BankAccount) -> None:
-    _alnum(account.bank_code, 4, "Bank code")
-    _alnum(account.branch_code, 3, "Branch code")
-    _alnum(account.account_number, 7, "Account number")
+    _alnum(account.bank_code, 4, "Bank code", "bank_code")
+    _alnum(account.branch_code, 3, "Branch code", "branch_code")
+    _alnum(account.account_number, 7, "Account number", "account_number")
     if account.account_type not in {"1", "2", "4"}:
-        raise ZenginError("Account type must be 1 (ordinary), 2 (checking) or 4 (savings)")
-    _text(account.bank_name_kana, 15, "Bank name")
-    _text(account.branch_name_kana, 15, "Branch name")
-    _text(account.holder_name_kana, 30, "Account holder")
+        raise ZenginError(
+            "Account type must be 1 (ordinary), 2 (checking) or 4 (savings)", field="account_type"
+        )
+    _text(account.bank_name_kana, 15, "Bank name", "bank_name_kana")
+    _text(account.branch_name_kana, 15, "Branch name", "branch_name_kana")
+    _text(account.holder_name_kana, 30, "Account holder", "holder_name_kana")
+
+
+def validate_consignor(consignor_code: str, consignor_name_kana: str) -> None:
+    """The payer fields of the header record, checked when settings are saved rather than at export."""
+    if len(consignor_code) != 10:
+        raise ZenginError("Consignor code must be 10 digits", field="consignor_code")
+    _alnum(consignor_code, 10, "Consignor code", "consignor_code")
+    _text(consignor_name_kana, 40, "Consignor name", "consignor_name_kana")
 
 
 def header_record(

@@ -20,6 +20,7 @@ from app.modules.identity.schemas import (
     MeOut,
     OrgOut,
     OrgUpdate,
+    PreferencesUpdate,
     RegisterRequest,
     RoleOut,
     TokenResponse,
@@ -70,6 +71,12 @@ async def accept_invitation(data: AcceptInvitationRequest) -> TokenResponse:
 @auth_router.get("/me", response_model=MeOut)
 async def me(session: DB, principal: CurrentUser) -> MeOut:
     return await service.me(session, principal)
+
+
+@auth_router.patch("/me/preferences", response_model=MeOut)
+async def update_preferences(data: PreferencesUpdate, session: DB, principal: CurrentUser) -> MeOut:
+    """The caller's own UI preferences (currently the language)."""
+    return await service.update_preferences(session, principal, data)
 
 
 @auth_router.get("/demo-personas", response_model=list[DemoPersonaOut])

@@ -98,8 +98,8 @@ Illegal transitions return `409 invalid_state_transition`.
 | Exception | How it is handled | Status |
 |---|---|---|
 | Rejected request | Reason required; remaining steps cancelled; requester can reopen and resubmit (new round) | ✅ |
-| Approval escalation | SLA due dates and overdue flags ✅. Automatic escalation job ⬜ P5 (needs the worker queue). | 🟡 |
-| Delegation | Approver delegates to a deputy for a period | ⬜ P5 |
+| Approval escalation | SLA due dates and overdue flags; an advisory-locked sweep reassigns overdue named steps to the next eligible manager (in-process interval or external scheduler). Notifications ⬜ (gap-closure Phase 2). | 🟡 |
+| Delegation | A named approver hands one undecided step to a colleague with the same approver role (not the requester) and can revoke it before the decision; audited. Screen at *Approvals → Delegations*. Per step, not a date-range out-of-office rule. | ✅ |
 | Budget exceeded | BUD-002 routes to finance manager at submission; re-checked at final approval under lock | ✅ |
 | No budget | BUD-001 routes to finance manager | ✅ |
 | Vendor blocked / suspended | VEN-001 blocks the request | ✅ |
@@ -192,7 +192,7 @@ the dataset version and git commit.
 | Security | Argon2id passwords, short-lived JWT, uniform login errors, hashed invite tokens, security headers, strict CORS, production config guards, log-extra redaction | 🟡 (rate limiting, refresh cookies, MFA, external security review remain) |
 | Observability | Structured JSON logs, request IDs, `/health` and `/ready` | 🟡 (metrics and tracing ⬜ P19) |
 | Performance | Health-only local smoke measured; no product capacity claim | 🟡 P17 authenticated API/database load remains |
-| Accessibility / UX | Keyboard-focusable controls, labelled inputs, responsive layout, light/dark themes | 🟡 (no formal audit yet) |
+| Accessibility / UX | Keyboard-focusable controls, labelled inputs, responsive layout, light/dark themes; English and Japanese UI with locale-aware dates, numbers and ¥ amounts, language saved per user | 🟡 (no formal accessibility audit; Japanese wording not reviewed by a native-speaking procurement user) |
 
 ## 8. Data honesty rules
 

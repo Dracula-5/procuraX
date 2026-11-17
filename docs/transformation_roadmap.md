@@ -37,7 +37,7 @@ training on e-mail threads and spreadsheets.
 | P2 | Authentication, RBAC, tenants | ✅ (SSO/MFA/refresh cookies deferred to P18) |
 | P3 | Database & APIs | ✅ |
 | P4 | Public deployment | 🟡 **Live on free tiers:** web https://procurax.netlify.app (Netlify), API https://procurax-mod8.onrender.com (Render Docker, prod settings, public-demo mode) with Neon PostgreSQL. CI builds the image; the Deploy workflow migrates as the owner role. Remaining: database migration and demo seed run once the GitHub database secrets are added |
-| P5 | Approval & policy engine: delegation, escalation job, notifications | 🟡 Delegation/revocation; SLA escalation scheduled in-process (advisory lock) or externally; external notifications remain |
+| P5 | Approval & policy engine: delegation, escalation job, notifications | 🟡 Delegation/revocation with its own screen; SLA escalation scheduled in-process (advisory lock) or externally; external notifications remain |
 | P6 | Quote capture/comparison, PO lifecycle, receipts + invoice capture | 🟡 Eligibility-aware weighted baseline; optional supplier line prices flow exactly into PO lines; line receipts and invoice lines; OCR runs end to end with a recorded synthetic benchmark |
 | P7 | 3-way matching, duplicate invoice rules, payment approval | 🟡 Cumulative line matching, tax and registration checks, exception decisions, close rules, payment approval and Zengin 総合振込 transfer-file export (row-locked, once per payment) delivered; ProcuraX never moves money |
 | P8 | Spend analytics & executive dashboard | 🟡 Live category/department/vendor and P2P aggregates; date, category, department and vendor filters; 12-month trend; mean/median/P90/max cycle times; CSV export and current-FY budget utilization by cost centre delivered. Savings opportunities and anomaly review remain |
@@ -55,6 +55,25 @@ training on e-mail threads and spreadsheets.
 | P20 | Business value measurement & cost model | Partial: parameterized formulas and an assumption-labeled calculator delivered; no project scenario populated or savings claimed |
 | P21 | Final documentation (consulting case, final benchmark) | 🟡 Consulting case and evidence-gated benchmark report drafted |
 | P22 | Resume & interview preparation | 🟡 Interview guide drafted; resume bullets limited to verified engineering facts |
+
+## Gap-closure programme (started 2026-11-12)
+
+Each phase is a branch `gaps/phase-N-<name>` with its own PR notes in [`reports/prs/`](../reports/prs/).
+The per-gap detail, including how each item was verified, is in [`reports/gap_closure.md`](../reports/gap_closure.md).
+
+| Phase | Scope | Status |
+|---|---|---|
+| 0 | Docs match the code (permission count, Render region, pgvector wording) + CI check on counts; data-safe 0007 downgrade; dependency audits clean | ✅ |
+| 1 | Delegation, vendor bank account and payment-settings screens; Japanese UI | ✅ (Japanese wording not yet reviewed by a native-speaking procurement user; server-generated free text stays English) |
+| 2 | Transactional outbox, PostgreSQL worker, in-app / e-mail / Slack / Teams notifications | ⬜ |
+| 3 | Invoice file storage (S3-compatible), documents table, optional ClamAV scan | ⬜ |
+| 4 | NTA registry lookup adapter; Peppol / JP PINT UBL import | ⬜ |
+| 5 | Contracts, multi-currency, ERP journal export | ⬜ |
+| 6 | Refresh cookies, CSRF, TOTP MFA, OIDC SSO, shared rate limiting, threat model | ⬜ |
+| 7 | Prometheus metrics, tracing flag, dashboards, backups and restore drill, runbook | ⬜ |
+| 8 | AI gateway, advisory flags, hybrid retrieval, cited LLM answers, SQL guard, Japanese OCR set | ⬜ |
+| 9 | Vitest, Playwright e2e, deterministic budget race test, authenticated load test | ⬜ |
+| 10 | KPI event instrumentation (opt-in), pilot plan and dashboard | ⬜ |
 
 ## Additional delivery evidence (P6–P8 first slice)
 
@@ -156,15 +175,16 @@ P4 public hosting (needs the owner's platform choice and accounts), then a genui
 
 ### Completed
 - **P0:** product positioning, business problem (current state, root causes, KPIs, risks,
-  assumptions), product spec, system design with 11 ADRs, this roadmap, and reference docs
-  generated from code (RBAC matrix, policy rules, OpenAPI).
+  assumptions), product spec, system design with 11 ADRs at the time, this roadmap, and reference
+  docs generated from code (RBAC matrix, policy rules, OpenAPI).
 - **P1:** purchase-request lifecycle as an explicit state machine; deterministic policy engine
-  with 21 rules (validation, vendor, contract, value tiers, budget, split purchase,
+  with 21 rules at the time (validation, vendor, contract, value tiers, budget, split purchase,
   emergency); sequential approval chains from the org structure and role pools; segregation of
   duties; no double sign-off; SLA due dates; resubmission rounds; budget re-check under lock at
   final approval; append-only audit trail; per-request timeline; dry-run policy preview.
 - **P2:** tenant registration, invitation-based onboarding (hashed single-use tokens),
-  Argon2id, JWT, 10 roles and 24 permissions with the code as source of truth, last-admin and
+  Argon2id, JWT, 10 roles and 23 permissions with the code as source of truth (corrected from
+  "24": `rbac.py` defines 23, including `payment:approve` added in P7), last-admin and
   reporting-cycle guards, platform-admin not grantable from tenants, fictional demo tenant with
   persona login.
 - **P3:** PostgreSQL schema (17 initial tables) via Alembic; RLS with FORCE on every tenant

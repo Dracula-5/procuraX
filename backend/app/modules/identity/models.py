@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base, SoftDeleteMixin, TenantMixin, TimestampMixin, UUIDPkMixin, utcnow
+from app.domain.catalog import Locale
 
 
 class Organization(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, Base):
@@ -38,7 +39,10 @@ class Organization(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, Base):
 
 class User(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):
     __tablename__ = "users"
-    __table_args__ = (CheckConstraint("email = lower(email)", name="email_lowercase"),)
+    __table_args__ = (
+        CheckConstraint("email = lower(email)", name="email_lowercase"),
+        CheckConstraint(f"locale IN ({', '.join(repr(v.value) for v in Locale)})", name="valid_locale"),
+    )
 
     email: Mapped[str] = mapped_column(String(320), unique=True)  # stored lower-cased
     full_name: Mapped[str] = mapped_column(String(200))
@@ -49,6 +53,8 @@ class User(UUIDPkMixin, TimestampMixin, SoftDeleteMixin, TenantMixin, Base):
     vendor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("vendors.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # UI language chosen by the user; NULL means "not chosen" (the browser language applies).
+    locale: Mapped[str | None] = mapped_column(String(5))
 
 
 class RoleDef(Base):

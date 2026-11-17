@@ -8,7 +8,11 @@ services:
     name: procurax-api
     runtime: docker
     plan: free
-    region: singapore  # closest Render region to Japan; create the Neon database in Singapore too
+    # The live service (procurax-mod8.onrender.com) was created in Oregon; see
+    # reports/live_deployment_smoke.json. Render fixes a service's region at creation, so this
+    # value describes that service. Singapore is closer to Japan: to move, create a new service
+    # with `region: singapore` and a Neon database in AWS Singapore (docs/deployment.md §2).
+    region: oregon
     # No rootDir: Render's docs disagree on whether paths are then relative to it, so every path
     # below is written from the repository root, which is unambiguous.
     dockerfilePath: ./backend/Dockerfile

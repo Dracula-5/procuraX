@@ -24,6 +24,8 @@ export interface Me {
   roles: string[];
   permissions: string[];
   organization: Organization;
+  /** Saved UI language; null = not chosen (the browser language applies). */
+  locale: "en" | "ja" | null;
 }
 
 export interface TokenResponse {

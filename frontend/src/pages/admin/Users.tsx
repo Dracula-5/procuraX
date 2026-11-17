@@ -1,14 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, UserPlus } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../../auth/useAuth";
 import { RoleBadge } from "../../components/badges";
 import { Badge, Button, Card, ErrorNotice, Field, Input, PageHeader, Select, Spinner, Table, Td, Th } from "../../components/ui";
 import { api, ApiError } from "../../lib/api";
 import { dateTime, relative } from "../../lib/format";
+import { useLabels } from "../../lib/labels";
 import type { Department, Invitation, RoleDef, User } from "../../lib/types";
 
 export function UsersAdmin() {
+  const { t } = useTranslation();
+  const labels = useLabels();
   const qc = useQueryClient();
   const { me } = useAuth();
   const users = useQuery({ queryKey: ["users"], queryFn: () => api.get<User[]>("/users") });
@@ -34,24 +38,22 @@ export function UsersAdmin() {
   return (
     <>
       <PageHeader
-        title="Users & roles"
-        subtitle="Roles grant permissions; the reporting line (manager) and department heads decide who approves what."
+        title={t("users.title")}
+        subtitle={t("users.subtitle")}
         actions={
           <Button onClick={() => (setInviting((v) => !v), setLastInvite(null))}>
-            <UserPlus className="size-4" /> Invite user
+            <UserPlus className="size-4" /> {t("users.invite")}
           </Button>
         }
       />
 
       {lastInvite?.invite_url && (
         <div className="mb-6 rounded-md border border-ok/30 bg-ok-soft p-3 text-sm">
-          <p className="font-medium text-ok">Invitation created for {lastInvite.email}</p>
-          <p className="mt-1 text-muted">
-            E-mail delivery is not connected yet (integration roadmap). Share this single-use link; it expires {relative(lastInvite.expires_at)}.
-          </p>
+          <p className="font-medium text-ok">{t("users.invitationCreated", { email: lastInvite.email })}</p>
+          <p className="mt-1 text-muted">{t("users.shareLink", { expires: relative(lastInvite.expires_at) })}</p>
           <div className="mt-2 flex gap-2">
             <Input readOnly value={lastInvite.invite_url} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
-            <Button variant="secondary" onClick={() => navigator.clipboard?.writeText(lastInvite.invite_url ?? "")} aria-label="Copy link">
+            <Button variant="secondary" onClick={() => navigator.clipboard?.writeText(lastInvite.invite_url ?? "")} aria-label={t("users.copyLink")}>
               <Copy className="size-4" />
             </Button>
           </div>
@@ -88,11 +90,11 @@ export function UsersAdmin() {
       <Table>
         <thead>
           <tr>
-            <Th>User</Th>
-            <Th>Roles</Th>
-            <Th>Department</Th>
-            <Th>Reports to</Th>
-            <Th>Last sign-in</Th>
+            <Th>{t("users.col.user")}</Th>
+            <Th>{t("users.col.roles")}</Th>
+            <Th>{t("users.department")}</Th>
+            <Th>{t("users.reportsTo")}</Th>
+            <Th>{t("users.col.lastSignIn")}</Th>
             <Th />
           </tr>
         </thead>
@@ -101,7 +103,7 @@ export function UsersAdmin() {
             <tr key={u.id} className={u.is_active ? "" : "opacity-60"}>
               <Td>
                 <p className="font-medium">
-                  {u.full_name} {!u.is_active && <Badge>inactive</Badge>}
+                  {u.full_name} {!u.is_active && <Badge>{t("common.inactive")}</Badge>}
                 </p>
                 <p className="text-xs text-muted">{u.email}</p>
               </Td>
@@ -114,10 +116,10 @@ export function UsersAdmin() {
               </Td>
               <Td>{deptName(u.department_id)}</Td>
               <Td>{userName(u.manager_id)}</Td>
-              <Td className="whitespace-nowrap text-muted">{u.last_login_at ? relative(u.last_login_at) : "never"}</Td>
+              <Td className="whitespace-nowrap text-muted">{u.last_login_at ? relative(u.last_login_at) : t("users.never")}</Td>
               <Td>
                 <Button size="sm" variant="ghost" onClick={() => setEditing(u)}>
-                  Edit
+                  {t("common.edit")}
                 </Button>
               </Td>
             </tr>
@@ -126,18 +128,18 @@ export function UsersAdmin() {
       </Table>
 
       {pendingInvites.length > 0 && (
-        <Card title="Pending invitations" className="mt-6">
+        <Card title={t("users.pendingInvitations")} className="mt-6">
           <ErrorNotice error={revoke.error} />
           <ul className="divide-y divide-border text-sm">
             {pendingInvites.map((i) => (
               <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span>
-                  {i.email} · <span className="text-muted">{i.roles.join(", ")}</span>
+                  {i.email} · <span className="text-muted">{i.roles.map((r) => labels.role(r)).join(t("common.listSeparator"))}</span>
                 </span>
                 <span className="flex items-center gap-2 text-xs text-muted">
-                  expires {dateTime(i.expires_at)}
+                  {t("users.expires", { when: dateTime(i.expires_at) })}
                   <Button size="sm" variant="ghost" onClick={() => revoke.mutate(i.id)}>
-                    Revoke
+                    {t("users.revoke")}
                   </Button>
                 </span>
               </li>
@@ -150,6 +152,7 @@ export function UsersAdmin() {
 }
 
 function RolePicker({ roles, value, onChange }: { roles: RoleDef[]; value: string[]; onChange: (v: string[]) => void }) {
+  const labels = useLabels();
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       {roles.map((r) => (
@@ -161,8 +164,8 @@ function RolePicker({ roles, value, onChange }: { roles: RoleDef[]; value: strin
             onChange={() => onChange(value.includes(r.key) ? value.filter((k) => k !== r.key) : [...value, r.key])}
           />
           <span>
-            <span className="font-medium">{r.name}</span>
-            <span className="block text-xs text-muted">{r.description}</span>
+            <span className="font-medium">{labels.role(r.key)}</span>
+            <span className="block text-xs text-muted">{labels.roleDescription(r.key, r.description)}</span>
           </span>
         </label>
       ))}
@@ -177,6 +180,7 @@ interface FormProps {
 }
 
 function InviteForm({ roles, departments, users, onDone }: FormProps & { onDone: (inv: Invitation) => void }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({ email: "", full_name: "", roles: ["employee"], department_id: "", manager_id: "", job_title: "" });
   const invite = useMutation({
     mutationFn: () =>
@@ -195,16 +199,16 @@ function InviteForm({ roles, departments, users, onDone }: FormProps & { onDone:
     invite.mutate();
   };
   return (
-    <Card title="Invite a user" className="mb-6">
+    <Card title={t("users.inviteTitle")} className="mb-6">
       <form onSubmit={submit} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="E-mail" error={errors.email}>
+          <Field label={t("auth.email")} error={errors.email}>
             <Input required type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
           </Field>
-          <Field label="Job title">
+          <Field label={t("users.jobTitle")}>
             <Input value={form.job_title} onChange={(e) => setForm((f) => ({ ...f, job_title: e.target.value }))} />
           </Field>
-          <Field label="Department">
+          <Field label={t("users.department")}>
             <Select value={form.department_id} onChange={(e) => setForm((f) => ({ ...f, department_id: e.target.value }))}>
               <option value="">—</option>
               {departments.map((d) => (
@@ -214,7 +218,7 @@ function InviteForm({ roles, departments, users, onDone }: FormProps & { onDone:
               ))}
             </Select>
           </Field>
-          <Field label="Reports to" hint="Their manager approves their requests (rule APR-001).">
+          <Field label={t("users.reportsTo")} hint={t("users.reportsToHint")}>
             <Select value={form.manager_id} onChange={(e) => setForm((f) => ({ ...f, manager_id: e.target.value }))}>
               <option value="">—</option>
               {users.filter((u) => u.is_active).map((u) => (
@@ -228,7 +232,7 @@ function InviteForm({ roles, departments, users, onDone }: FormProps & { onDone:
         <RolePicker roles={roles} value={form.roles} onChange={(v) => setForm((f) => ({ ...f, roles: v }))} />
         {!Object.keys(errors).length && <ErrorNotice error={invite.error} />}
         <Button type="submit" loading={invite.isPending} disabled={!form.roles.length}>
-          Create invitation
+          {t("users.createInvitation")}
         </Button>
       </form>
     </Card>
@@ -236,6 +240,7 @@ function InviteForm({ roles, departments, users, onDone }: FormProps & { onDone:
 }
 
 function EditUser({ user, roles, departments, users, isSelf, onDone }: FormProps & { user: User; isSelf: boolean; onDone: () => void }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({
     roles: user.roles,
     department_id: user.department_id ?? "",
@@ -253,10 +258,10 @@ function EditUser({ user, roles, departments, users, isSelf, onDone }: FormProps
     onSuccess: onDone,
   });
   return (
-    <Card title={`Edit ${user.full_name}`} className="mb-6">
+    <Card title={t("users.editTitle", { name: user.full_name })} className="mb-6">
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Department">
+          <Field label={t("users.department")}>
             <Select value={form.department_id} onChange={(e) => setForm((f) => ({ ...f, department_id: e.target.value }))}>
               <option value="">—</option>
               {departments.map((d) => (
@@ -266,7 +271,7 @@ function EditUser({ user, roles, departments, users, isSelf, onDone }: FormProps
               ))}
             </Select>
           </Field>
-          <Field label="Reports to">
+          <Field label={t("users.reportsTo")}>
             <Select value={form.manager_id} onChange={(e) => setForm((f) => ({ ...f, manager_id: e.target.value }))}>
               <option value="">—</option>
               {users
@@ -282,19 +287,18 @@ function EditUser({ user, roles, departments, users, isSelf, onDone }: FormProps
         <RolePicker roles={roles} value={form.roles} onChange={(v) => setForm((f) => ({ ...f, roles: v }))} />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-[var(--primary)]" disabled={isSelf} checked={form.is_active} onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.checked }))} />
-          Active {isSelf && <span className="text-muted">(you cannot deactivate yourself)</span>}
+          {t("common.active")} {isSelf && <span className="text-muted">{t("users.cannotDeactivateSelf")}</span>}
         </label>
         <ErrorNotice error={save.error} />
         <div className="flex gap-2">
           <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!form.roles.length}>
-            Save
+            {t("common.save")}
           </Button>
           <Button variant="ghost" onClick={onDone}>
-            Close
+            {t("common.close")}
           </Button>
         </div>
       </div>
     </Card>
   );
 }
-

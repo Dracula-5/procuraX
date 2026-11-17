@@ -23,6 +23,8 @@ claims. Approved payments export as a Zengin (全銀) bank transfer file; Procur
 money itself. The assistant retrieves Japanese text, measured on the National Tax Agency's own
 invoice-system Q&A. A free, no-card deployment (Render API + Netlify web + Neon + GitHub Actions) is scripted and
 was rehearsed locally against a Neon-like database. Hosting it needs the owner's free accounts.
+The UI is available in English and Japanese (日本語), with the language saved per user; approvers can delegate a step from a
+delegation screen, and vendor bank accounts and payer settings have their own screens with inline Zengin character checks.
 No pilot has been run; [illustrative personas](docs/user_personas.md) show the intended users.
 See the [roadmap](docs/transformation_roadmap.md).
 
@@ -80,7 +82,7 @@ What makes it enterprise-grade rather than CRUD:
 - **Least privilege in the database.** The app role cannot UPDATE or DELETE audit rows or edit
   the RBAC catalogue.
 
-→ [System design & 11 ADRs](docs/system_design.md) · [Dataset strategy](docs/datasets.md) · [Local verification](docs/local_verification.md) ·
+→ [System design & 12 ADRs](docs/system_design.md) · [Dataset strategy](docs/datasets.md) · [Local verification](docs/local_verification.md) ·
 [Product spec](docs/product_spec.md) ·
 [Free deployment](docs/deployment.md) · [Illustrative personas](docs/user_personas.md) ·
 [RBAC matrix (generated)](docs/generated/rbac_matrix.md) ·
@@ -115,8 +117,9 @@ Current implementation verification:
 
 | What | Result |
 |---|---|
-| Backend API and domain tests | 165 passing; 92% backend line coverage, including tenant isolation, RLS, concurrency (approvals and invoices) and P2P controls |
-| Frontend production build | Passed (`tsc -b` + Vite); 437.58 kB JS (127.82 kB gzip), 23.59 kB CSS |
+| Backend API and domain tests | 211 passing (gap-closure Phase 1), including tenant isolation, RLS, concurrency (approvals and invoices) and P2P controls |
+| Frontend production build | Passed (`tsc -b` + Vite). Main bundle 298.17 kB JS (93.20 kB gzip) with signed-in pages split into route chunks and Japanese strings in a 44.88 kB chunk loaded on demand; 24.11 kB CSS |
+| Frontend tests | 56 passing (Vitest + Testing Library): translations, formatting, error mapping, permission guard, language switcher, bank-account form, delegation screen |
 | Backend static checks | Ruff, ruff format and mypy passed |
 | API/database migration | Empty database → head → base → head and `alembic check`: no schema drift |
 | Invoice OCR | 40 rendered synthetic invoices per condition, held-out seed: see [benchmark report](reports/final_benchmark.md#invoice-ocr-end-to-end) |
@@ -176,10 +179,11 @@ Checks (the same as CI):
 cd backend
 uv run ruff check app tests alembic && uv run ruff format --check app tests alembic
 uv run mypy app
+uv run alembic upgrade head && uv run alembic downgrade base && uv run alembic upgrade head && uv run alembic check
 uv run pytest --cov                                    # needs the docker-compose database
-uv run alembic check
 uv run python -m app.scripts.gen_docs --check          # generated docs match the code
-cd ../frontend && npx oxlint src && npm run build
+uv run python -m app.scripts.check_doc_claims          # role/permission/rule/ADR counts in docs match the code
+cd ../frontend && npx oxlint src && npm run build && npm test   # Vitest + Testing Library
 ```
 
 ## Repository layout

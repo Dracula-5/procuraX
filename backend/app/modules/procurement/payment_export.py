@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
-from app.api.deps import DB, requires
+from app.api.deps import DB, requires, requires_any
 from app.core.db import utcnow
 from app.core.errors import BusinessRuleViolation, NotFoundError
 from app.core.principal import Principal
@@ -22,6 +22,7 @@ from app.domain.zengin import (
     build_transfer_file,
     to_zengin_kana,
     validate_account,
+    validate_consignor,
 )
 from app.modules.audit import service as audit
 from app.modules.identity.models import Organization
@@ -32,6 +33,10 @@ router = APIRouter(tags=["payments"])
 Finance = Annotated[Principal, Depends(requires(Permission.PAYMENT_APPROVE))]
 VendorManager = Annotated[Principal, Depends(requires(Permission.VENDOR_MANAGE))]
 OrgAdmin = Annotated[Principal, Depends(requires(Permission.ORG_MANAGE))]
+# The admin maintains the payer settings and finance uses them, so both may read them (masked).
+PaymentSettingsReader = Annotated[
+    Principal, Depends(requires_any(Permission.ORG_MANAGE, Permission.PAYMENT_APPROVE))
+]
 
 
 class BankAccountIn(BaseModel):
@@ -54,15 +59,26 @@ class TransferFileIn(BaseModel):
 
 
 def _normalise(data: BankAccountIn) -> dict:
-    """Validate against Zengin field rules and store names in bank (half-width kana) form."""
+    """Validate against Zengin field rules and store names in bank (half-width kana) form.
+
+    Errors carry `details.reason` (zengin_invalid_characters / zengin_too_long / zengin_format) and
+    `details.field`, so the UI can show a translated message next to the right input.
+    """
     stored = data.model_dump()
     try:
         for key in ("bank_name_kana", "branch_name_kana", "holder_name_kana", "consignor_name_kana"):
             if key in stored:
-                stored[key] = to_zengin_kana(stored[key])
+                try:
+                    stored[key] = to_zengin_kana(stored[key])
+                except ZenginError as exc:
+                    raise ZenginError(str(exc), field=key, kind=exc.kind) from exc
         validate_account(_account(stored))
+        if "consignor_code" in stored:
+            validate_consignor(stored["consignor_code"], stored["consignor_name_kana"])
     except ZenginError as exc:
-        raise BusinessRuleViolation(str(exc)) from exc
+        raise BusinessRuleViolation(
+            str(exc), details={"reason": f"zengin_{exc.kind}", "field": exc.field}
+        ) from exc
     return stored
 
 
@@ -142,7 +158,7 @@ async def set_payment_settings(data: PaymentSettingsIn, session: DB, principal: 
 
 
 @router.get("/organizations/current/payment-settings")
-async def get_payment_settings(session: DB, principal: Finance) -> dict:
+async def get_payment_settings(session: DB, principal: PaymentSettingsReader) -> dict:
     stored = await session.scalar(
         select(Organization.payment_settings).where(Organization.id == principal.org_id)
     )

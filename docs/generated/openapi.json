@@ -157,6 +157,53 @@
         ]
       }
     },
+    "/api/v1/auth/me/preferences": {
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update Preferences",
+        "description": "The caller's own UI preferences (currently the language).",
+        "operationId": "update_preferences_api_v1_auth_me_preferences_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/auth/demo-personas": {
       "get": {
         "tags": [
@@ -3397,12 +3444,127 @@
         }
       }
     },
+    "/api/v1/approvals/inbox": {
+      "get": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "Approval Inbox",
+        "description": "Approval steps the caller can act on now, most urgent first.",
+        "operationId": "approval_inbox_api_v1_approvals_inbox_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InboxItemOut"
+                  },
+                  "type": "array",
+                  "title": "Response Approval Inbox Api V1 Approvals Inbox Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/approvals/delegable": {
+      "get": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "List Delegable Steps",
+        "description": "Undecided steps named to the caller that have never been delegated (one delegation per step).",
+        "operationId": "list_delegable_steps_api_v1_approvals_delegable_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DelegableStepOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Delegable Steps Api V1 Approvals Delegable Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/approvals/{approval_id}/delegate-candidates": {
+      "get": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "List Delegate Candidates",
+        "operationId": "list_delegate_candidates_api_v1_approvals__approval_id__delegate_candidates_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DelegateCandidateOut"
+                  },
+                  "title": "Response List Delegate Candidates Api V1 Approvals  Approval Id  Delegate Candidates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/approvals/delegations": {
       "get": {
         "tags": [
           "approvals"
         ],
         "summary": "List Delegations",
+        "description": "Delegations the caller gave or received, newest first.",
         "operationId": "list_delegations_api_v1_approvals_delegations_get",
         "responses": {
           "200": {
@@ -3411,8 +3573,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/DelegationOut"
                   },
                   "type": "array",
                   "title": "Response List Delegations Api V1 Approvals Delegations Get"
@@ -3522,37 +3683,6 @@
             }
           }
         }
-      }
-    },
-    "/api/v1/approvals/inbox": {
-      "get": {
-        "tags": [
-          "approvals"
-        ],
-        "summary": "Approval Inbox",
-        "description": "Approval steps the caller can act on now, most urgent first.",
-        "operationId": "approval_inbox_api_v1_approvals_inbox_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/InboxItemOut"
-                  },
-                  "type": "array",
-                  "title": "Response Approval Inbox Api V1 Approvals Inbox Get"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
       }
     },
     "/api/v1/approval-policies/active": {
@@ -4753,6 +4883,113 @@
         "type": "object",
         "title": "CostCenterUpdate"
       },
+      "DelegableStepOut": {
+        "properties": {
+          "approval_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Approval Id"
+          },
+          "purchase_request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Purchase Request Id"
+          },
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "requester_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requester Name"
+          },
+          "approver_role": {
+            "type": "string",
+            "title": "Approver Role"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "estimated_total": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Estimated Total"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "approval_id",
+          "purchase_request_id",
+          "number",
+          "title",
+          "requester_name",
+          "approver_role",
+          "status",
+          "estimated_total",
+          "currency",
+          "due_at"
+        ],
+        "title": "DelegableStepOut"
+      },
+      "DelegateCandidateOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "full_name",
+          "job_title"
+        ],
+        "title": "DelegateCandidateOut"
+      },
       "DelegationCreateIn": {
         "properties": {
           "approval_id": {
@@ -4772,6 +5009,98 @@
           "delegate_user_id"
         ],
         "title": "DelegationCreateIn"
+      },
+      "DelegationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "approval_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Approval Id"
+          },
+          "purchase_request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Purchase Request Id"
+          },
+          "request_number": {
+            "type": "string",
+            "title": "Request Number"
+          },
+          "request_title": {
+            "type": "string",
+            "title": "Request Title"
+          },
+          "approver_role": {
+            "type": "string",
+            "title": "Approver Role"
+          },
+          "step_status": {
+            "type": "string",
+            "title": "Step Status"
+          },
+          "delegator_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Delegator Id"
+          },
+          "delegator_name": {
+            "type": "string",
+            "title": "Delegator Name"
+          },
+          "delegate_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Delegate Id"
+          },
+          "delegate_name": {
+            "type": "string",
+            "title": "Delegate Name"
+          },
+          "delegated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Delegated At"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "can_revoke": {
+            "type": "boolean",
+            "title": "Can Revoke"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "approval_id",
+          "purchase_request_id",
+          "request_number",
+          "request_title",
+          "approver_role",
+          "step_status",
+          "delegator_id",
+          "delegator_name",
+          "delegate_id",
+          "delegate_name",
+          "delegated_at",
+          "revoked_at",
+          "can_revoke"
+        ],
+        "title": "DelegationOut"
       },
       "DemoLoginRequest": {
         "properties": {
@@ -5622,6 +5951,15 @@
         ],
         "title": "KnowledgeQueryIn"
       },
+      "Locale": {
+        "type": "string",
+        "enum": [
+          "en",
+          "ja"
+        ],
+        "title": "Locale",
+        "description": "UI languages. Stored per user; the API's own messages and error codes stay language-neutral."
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -5708,6 +6046,16 @@
           },
           "organization": {
             "$ref": "#/components/schemas/OrgOut"
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Locale"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -7052,6 +7400,27 @@
           "config"
         ],
         "title": "PolicyPublishIn"
+      },
+      "PreferencesUpdate": {
+        "properties": {
+          "locale": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Locale"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "locale"
+        ],
+        "title": "PreferencesUpdate",
+        "description": "The caller's own settings. `locale: null` clears the choice (the browser language applies)."
       },
       "QuoteIn": {
         "properties": {

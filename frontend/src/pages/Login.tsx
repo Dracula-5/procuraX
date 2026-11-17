@@ -1,22 +1,27 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { RoleBadge } from "../components/badges";
 import { DeploymentNotice } from "../components/DeploymentNotice";
-import { useMeta } from "../lib/meta";
+import { LanguageSwitcher } from "../components/LanguageSwitcher";
 import { Button, ErrorNotice, Field, Input } from "../components/ui";
 import { api } from "../lib/api";
+import { useMeta } from "../lib/meta";
 import type { DemoPersona, TokenResponse } from "../lib/types";
 
 export function AuthShell({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen items-start justify-center px-4 py-12 sm:items-center">
       <div className="w-full max-w-md">
-        <Link to="/" className="mb-8 flex items-center gap-2">
-          <img src="/favicon.svg" alt="" className="size-7" />
-          <span className="font-semibold tracking-tight">ProcuraX</span>
-        </Link>
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <Link to="/" className="flex items-center gap-2">
+            <img src="/favicon.svg" alt="" className="size-7" />
+            <span className="font-semibold tracking-tight">ProcuraX</span>
+          </Link>
+          <LanguageSwitcher />
+        </div>
         <h1 className="text-xl font-semibold">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
         <div className="mt-6">{children}</div>
@@ -26,6 +31,7 @@ export function AuthShell({ title, subtitle, children }: { title: string; subtit
 }
 
 export function Login() {
+  const { t } = useTranslation();
   const { me, signIn } = useAuth();
   const navigate = useNavigate();
   const from = (useLocation().state as { from?: string } | null)?.from ?? "/app";
@@ -56,24 +62,26 @@ export function Login() {
   };
 
   return (
-    <AuthShell title="Sign in" subtitle="Use your organisation account, or explore the demo tenant as any persona.">
-      <div className="mb-4 overflow-hidden rounded-md"><DeploymentNotice /></div>
+    <AuthShell title={t("auth.signIn")} subtitle={t("auth.signInSubtitle")}>
+      <div className="mb-4 overflow-hidden rounded-md">
+        <DeploymentNotice />
+      </div>
       <form onSubmit={submit} className="space-y-4 rounded-lg border border-border bg-surface p-5">
-        <Field label="E-mail">
+        <Field label={t("auth.email")}>
           <Input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
-        <Field label="Password">
+        <Field label={t("auth.password")}>
           <Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </Field>
         <ErrorNotice error={login.error} />
         <Button type="submit" className="w-full" loading={login.isPending}>
-          Sign in
+          {t("auth.signIn")}
         </Button>
         {registration && (
           <p className="text-center text-sm text-muted">
-            New organisation?{" "}
+            {t("auth.newOrg")}{" "}
             <Link className="font-medium text-primary hover:underline" to="/register">
-              Create one
+              {t("auth.createOne")}
             </Link>
           </p>
         )}
@@ -81,10 +89,8 @@ export function Login() {
 
       {personas.data && personas.data.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-sm font-semibold">Demo tenant personas</h2>
-          <p className="mt-1 text-xs text-muted">
-            Fictional company and people. Sign in as each role to see how access and approvals differ.
-          </p>
+          <h2 className="text-sm font-semibold">{t("auth.personasTitle")}</h2>
+          <p className="mt-1 text-xs text-muted">{t("auth.personasBody")}</p>
           <ErrorNotice error={demo.error} />
           <ul className="mt-3 divide-y divide-border rounded-lg border border-border bg-surface">
             {personas.data.map((p) => (
@@ -99,9 +105,11 @@ export function Login() {
                     <span className="block text-xs text-muted">{p.job_title}</span>
                   </span>
                   <span className="flex flex-wrap justify-end gap-1">
-                    {p.roles.filter((r) => r !== "employee" || p.roles.length === 1).map((r) => (
-                      <RoleBadge key={r} role={r} />
-                    ))}
+                    {p.roles
+                      .filter((r) => r !== "employee" || p.roles.length === 1)
+                      .map((r) => (
+                        <RoleBadge key={r} role={r} />
+                      ))}
                   </span>
                 </button>
               </li>
@@ -112,4 +120,3 @@ export function Login() {
     </AuthShell>
   );
 }
-
